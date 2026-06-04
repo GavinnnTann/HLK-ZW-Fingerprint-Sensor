@@ -1,5 +1,5 @@
 """
-ZW101 Fingerprint Module Tester — FPS / EF01 Protocol  [PyQt6]
+ZW101 Fingerprint Module Tester  [PyQt6]
 Requires: pip install pyserial PyQt6
 """
 
@@ -12,16 +12,20 @@ import pathlib
 import serial
 import serial.tools.list_ports
 
-_ICON = str(pathlib.Path(__file__).parent / "Images" / "Fingerprint ICO.ico")
+def _resource(rel):
+    base = getattr(sys, '_MEIPASS', pathlib.Path(__file__).parent)
+    return str(pathlib.Path(base) / rel)
+
+_ICON = _resource("Images/Fingerprint ICO.ico")
 
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QTabWidget,
     QGroupBox, QLabel, QPushButton, QComboBox, QSpinBox,
     QProgressBar, QPlainTextEdit, QMessageBox, QLineEdit,
     QHBoxLayout, QVBoxLayout, QGridLayout,
-    QSplitter, QFrame, QScrollArea,
+    QSplitter, QFrame, QScrollArea, QFileDialog,
 )
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QSettings
 from PyQt6.QtGui import QPainter, QColor, QFont, QPalette, QIcon
 
 # ── Protocol constants ──────────────────────────────────────────────────────────
@@ -36,6 +40,8 @@ FINGERPRINT_SEARCH         = 0x04
 FINGERPRINT_REGMODEL       = 0x05
 FINGERPRINT_STORE          = 0x06
 FINGERPRINT_LOAD           = 0x07
+FINGERPRINT_UPCHAR         = 0x08
+FINGERPRINT_DOWNCHAR       = 0x09
 FINGERPRINT_DELETE         = 0x0C
 FINGERPRINT_EMPTY          = 0x0D
 FINGERPRINT_WRITE_REG      = 0x0E
@@ -209,7 +215,7 @@ class App(QMainWindow):
     def __init__(self):
         super().__init__()
         self._ui_signal.connect(lambda fn: fn())
-        self.setWindowTitle("ZW101 Fingerprint Tester  [FPS / EF01]")
+        self.setWindowTitle("HL-ZW101 Fingerprint Tester")
         self.setWindowIcon(QIcon(_ICON))
         self.resize(1020, 820)
         self.ser   = None
@@ -217,6 +223,7 @@ class App(QMainWindow):
         self._map_states    = [False] * 50
         self._enroll_cancel = threading.Event()
         self._build()
+        self.statusBar().addPermanentWidget(QLabel("by @GavinnnTann"))
 
     def _ui(self, fn):
         """Schedule fn() on the main thread from any thread."""
@@ -333,8 +340,10 @@ class App(QMainWindow):
         grid.addWidget(dev_box, 0, 0)
 
         # ── Row 0 Col 1: Template Management ──────────────────────────────
-        mgmt_box = QGroupBox("Template Management")
-        mgmt_lay = QHBoxLayout(mgmt_box)
+        mgmt_box   = QGroupBox("Template Management")
+        mgmt_outer = QVBoxLayout(mgmt_box)
+
+        mgmt_row1 = QHBoxLayout()
 
         chk_box = QGroupBox("Check ID")
         chk_lay = QVBoxLayout(chk_box)
@@ -343,7 +352,7 @@ class App(QMainWindow):
         r.addWidget(self.chk_id); chk_lay.addLayout(r)
         b = QPushButton("Check Exists"); b.clicked.connect(self.cmd_check_exists)
         chk_lay.addWidget(b)
-        mgmt_lay.addWidget(chk_box)
+        mgmt_row1.addWidget(chk_box)
 
         del1_box = QGroupBox("Delete Single")
         del1_lay = QVBoxLayout(del1_box)
@@ -352,7 +361,7 @@ class App(QMainWindow):
         r.addWidget(self.del_id); del1_lay.addLayout(r)
         b = QPushButton("Delete"); b.clicked.connect(self.cmd_delete_single)
         del1_lay.addWidget(b)
-        mgmt_lay.addWidget(del1_box)
+        mgmt_row1.addWidget(del1_box)
 
         delr_box = QGroupBox("Delete Range")
         delr_lay = QVBoxLayout(delr_box)
@@ -365,7 +374,7 @@ class App(QMainWindow):
         r.addWidget(self.del_last); delr_lay.addLayout(r)
         b = QPushButton("Delete Range"); b.clicked.connect(self.cmd_delete_range)
         delr_lay.addWidget(b)
-        mgmt_lay.addWidget(delr_box)
+        mgmt_row1.addWidget(delr_box)
 
         wipe_box = QGroupBox("⚠  Wipe All")
         wipe_lay = QVBoxLayout(wipe_box)
@@ -374,7 +383,33 @@ class App(QMainWindow):
         wipe_lay.addWidget(wl)
         b = QPushButton("WIPE ALL FINGERPRINTS"); b.clicked.connect(self.cmd_delete_all)
         wipe_lay.addWidget(b)
-        mgmt_lay.addWidget(wipe_box)
+        mgmt_row1.addWidget(wipe_box)
+        mgmt_outer.addLayout(mgmt_row1)
+
+        mgmt_row2 = QHBoxLayout()
+
+        exp_box = QGroupBox("Export Template")
+        exp_lay = QVBoxLayout(exp_box)
+        r = QHBoxLayout(); r.addWidget(QLabel("ID:"))
+        self.export_id_spin = QSpinBox(); self.export_id_spin.setRange(0, 49)
+        r.addWidget(self.export_id_spin); r.addStretch()
+        exp_lay.addLayout(r)
+        b = QPushButton("Export to File"); b.clicked.connect(self.cmd_export)
+        exp_lay.addWidget(b)
+        mgmt_row2.addWidget(exp_box)
+
+        imp_box = QGroupBox("Import Template")
+        imp_lay = QVBoxLayout(imp_box)
+        r = QHBoxLayout(); r.addWidget(QLabel("To ID:"))
+        self.import_id_spin = QSpinBox(); self.import_id_spin.setRange(0, 49)
+        r.addWidget(self.import_id_spin); r.addStretch()
+        imp_lay.addLayout(r)
+        b = QPushButton("Import from File"); b.clicked.connect(self.cmd_import)
+        imp_lay.addWidget(b)
+        mgmt_row2.addWidget(imp_box)
+
+        mgmt_row2.addStretch()
+        mgmt_outer.addLayout(mgmt_row2)
         grid.addWidget(mgmt_box, 0, 1)
 
         # ── Row 1 Col 0: Enrollment ────────────────────────────────────────
@@ -497,7 +532,8 @@ class App(QMainWindow):
         self.theme_cb.addItems(["System", "Light", "Dark"])
         self.theme_cb.setMinimumWidth(120)
         self.theme_cb.currentTextChanged.connect(
-            lambda t: apply_theme(QApplication.instance(), t.lower()))
+            lambda t: (apply_theme(QApplication.instance(), t.lower()),
+                       QSettings("GavinnnTann", "HLK-ZW101-Tester").setValue("theme", t.lower())))
         theme_lay.addWidget(self.theme_cb)
         theme_lay.addStretch()
         lay.addWidget(theme_box)
@@ -611,7 +647,7 @@ class App(QMainWindow):
         self.log.setReadOnly(True)
         self.log.setFont(QFont("Consolas", 9))
         self.log.setStyleSheet("background: #1a1a2e; color: #00ff88;")
-        self.log.setMinimumHeight(150)
+        self.log.setMinimumHeight(60)
         lay.addWidget(self.log)
         clr = QPushButton("Clear"); clr.setMaximumWidth(80)
         clr.clicked.connect(self.log.clear)
@@ -775,6 +811,40 @@ class App(QMainWindow):
 
         self.log_msg(f"→ 0x{cc:02X}  {CONFIRM.get(cc, f'unknown 0x{cc:02X}')}")
         return cc, data
+
+    def _recv_packets(self, timeout=5.0):
+        """Read PID=0x02 data packets + PID=0x08 end packet; return assembled payload."""
+        payload  = bytearray()
+        deadline = time.time() + timeout
+        while True:
+            hdr = bytearray()
+            while len(hdr) < 9 and time.time() < deadline:
+                hdr += self.ser.read(max(1, 9 - len(hdr)))
+            if len(hdr) < 9:
+                self.log_msg("TIMEOUT reading data-stream header"); break
+            if hdr[:2] != HEADER:
+                self.log_msg(f"Bad header in data stream: {hdr[:2].hex().upper()}"); break
+            pid    = hdr[6]
+            length = struct.unpack('>H', hdr[7:9])[0]
+            rest   = bytearray()
+            while len(rest) < length and time.time() < deadline:
+                rest += self.ser.read(max(1, length - len(rest)))
+            if len(rest) < length:
+                self.log_msg("TIMEOUT reading data-stream body"); break
+            payload += rest[:-2]   # strip 2-byte checksum
+            if pid == 0x08:        # end packet
+                break
+        return bytes(payload)
+
+    def _send_packets(self, data, pkt_size=128):
+        """Send data as PID=0x02 data packets + PID=0x08 end packet."""
+        chunks = [data[i:i + pkt_size] for i in range(0, len(data), pkt_size)]
+        for i, chunk in enumerate(chunks):
+            pid = 0x08 if i == len(chunks) - 1 else 0x02
+            lb  = struct.pack('>H', len(chunk) + 2)
+            cs  = struct.pack('>H', fps_checksum(pid, lb, chunk))
+            self.ser.write(HEADER + ADDR + bytes([pid]) + lb + chunk + cs)
+        self.ser.flush()
 
     # ── Device commands ─────────────────────────────────────────────────────────
 
@@ -1019,6 +1089,119 @@ class App(QMainWindow):
             self.log_msg("ALL fingerprints wiped.")
             self.cmd_storage_map()
 
+    def cmd_export(self):
+        if not (self.ser and self.ser.is_open):
+            self.log_msg("ERROR: Not connected"); return
+        fp_id = self.export_id_spin.value()
+
+        # Load slot into CharBuffer1
+        cc, _ = self.send_recv(FINGERPRINT_LOAD,
+                               bytes([0x01, (fp_id >> 8) & 0xFF, fp_id & 0xFF]))
+        if cc != 0x00:
+            self.log_msg(f"[Export] Load ID {fp_id}: {CONFIRM.get(cc, f'0x{cc:02X}')}"); return
+
+        # UpChar: request the buffer as a data stream
+        pkt = build_packet(FINGERPRINT_UPCHAR, bytes([0x01]))
+        self.log_msg(f"TX [0x08 UpChar]: {pkt.hex(' ').upper()}")
+        template_data = None
+        with self.lock:
+            try:
+                self.ser.reset_input_buffer()
+                self.ser.write(pkt); self.ser.flush()
+                buf = bytearray()
+                deadline = time.time() + 3.0
+                while len(buf) < 9 and time.time() < deadline:
+                    buf += self.ser.read(max(1, 9 - len(buf)))
+                if len(buf) < 9:
+                    self.log_msg("[Export] Timeout: no UpChar ACK"); return
+                length = struct.unpack('>H', buf[7:9])[0]
+                total  = 9 + length
+                while len(buf) < total and time.time() < deadline:
+                    buf += self.ser.read(max(1, total - len(buf)))
+                cc, _ = parse_response(bytes(buf))
+                self.log_msg(f"RX UpChar ACK: 0x{cc:02X}  {CONFIRM.get(cc, '')}")
+                if cc != 0x00:
+                    self.log_msg(f"[Export] UpChar rejected: {CONFIRM.get(cc, f'0x{cc:02X}')}"); return
+                template_data = self._recv_packets()
+            except Exception as e:
+                self.log_msg(f"[Export] Error: {e}"); return
+
+        if not template_data:
+            self.log_msg("[Export] No data received"); return
+        self.log_msg(f"[Export] Received {len(template_data)} bytes")
+
+        path, _ = QFileDialog.getSaveFileName(
+            self, f"Export Fingerprint — ID {fp_id}",
+            f"fingerprint_id{fp_id:02d}.fp",
+            "Fingerprint Template (*.fp);;All Files (*)"
+        )
+        if not path:
+            return
+        with open(path, 'wb') as f:
+            f.write(b'HLK\x01')
+            f.write(struct.pack('>H', fp_id))
+            f.write(struct.pack('>H', len(template_data)))
+            f.write(template_data)
+        self.log_msg(f"[Export] ID {fp_id} saved to {path}")
+
+    def cmd_import(self):
+        if not (self.ser and self.ser.is_open):
+            self.log_msg("ERROR: Not connected"); return
+
+        path, _ = QFileDialog.getOpenFileName(
+            self, "Import Fingerprint Template",
+            "", "Fingerprint Template (*.fp);;All Files (*)"
+        )
+        if not path:
+            return
+        try:
+            with open(path, 'rb') as f:
+                if f.read(3) != b'HLK':
+                    QMessageBox.critical(self, "Invalid File", "Not a valid .fp template file."); return
+                f.read(1)  # version
+                orig_id       = struct.unpack('>H', f.read(2))[0]
+                datalen       = struct.unpack('>H', f.read(2))[0]
+                template_data = f.read(datalen)
+        except Exception as e:
+            QMessageBox.critical(self, "Read Error", str(e)); return
+
+        target_id = self.import_id_spin.value()
+        self.log_msg(f"[Import] {len(template_data)}B (orig slot {orig_id}) → slot {target_id}")
+
+        # DownChar: send the template as a data stream
+        pkt = build_packet(FINGERPRINT_DOWNCHAR, bytes([0x01]))
+        self.log_msg(f"TX [0x09 DownChar]: {pkt.hex(' ').upper()}")
+        with self.lock:
+            try:
+                self.ser.reset_input_buffer()
+                self.ser.write(pkt); self.ser.flush()
+                buf = bytearray()
+                deadline = time.time() + 3.0
+                while len(buf) < 9 and time.time() < deadline:
+                    buf += self.ser.read(max(1, 9 - len(buf)))
+                if len(buf) < 9:
+                    self.log_msg("[Import] Timeout: no DownChar ACK"); return
+                length = struct.unpack('>H', buf[7:9])[0]
+                total  = 9 + length
+                while len(buf) < total and time.time() < deadline:
+                    buf += self.ser.read(max(1, total - len(buf)))
+                cc, _ = parse_response(bytes(buf))
+                self.log_msg(f"RX DownChar ACK: 0x{cc:02X}  {CONFIRM.get(cc, '')}")
+                if cc != 0x00:
+                    self.log_msg(f"[Import] DownChar rejected: {CONFIRM.get(cc, f'0x{cc:02X}')}"); return
+                self._send_packets(template_data)
+            except Exception as e:
+                self.log_msg(f"[Import] Error: {e}"); return
+
+        # Store CharBuffer1 to the target slot
+        cc, _ = self.send_recv(FINGERPRINT_STORE,
+                               bytes([0x01, (target_id >> 8) & 0xFF, target_id & 0xFF]))
+        if cc == 0x00:
+            self.log_msg(f"[Import] Stored to slot {target_id} ✓")
+            self.cmd_storage_map()
+        else:
+            self.log_msg(f"[Import] Store failed: {CONFIRM.get(cc, f'0x{cc:02X}')}")
+
     # ── LED ─────────────────────────────────────────────────────────────────────
 
     _CMAP = {1: 0x04, 2: 0x01, 3: 0x05, 4: 0x02, 5: 0x03, 6: 0x06, 7: 0x07, 0: 0x00}
@@ -1157,15 +1340,13 @@ class App(QMainWindow):
 if __name__ == "__main__":
     app = QApplication(sys.argv)
     app.setWindowIcon(QIcon(_ICON))
-    # Snapshot the native system theme before touching anything
     apply_theme(app, "system")
-    # Detect whether the system is dark or light and apply the matching
-    # Fusion theme immediately — avoids the cluttered native-style first render
-    bg = app.palette().color(QPalette.ColorRole.Window)
-    startup_theme = "dark" if bg.lightness() < 128 else "light"
+    bg       = app.palette().color(QPalette.ColorRole.Window)
+    detected = "dark" if bg.lightness() < 128 else "light"
+    saved    = QSettings("GavinnnTann", "HLK-ZW101-Tester").value("theme", "")
+    startup_theme = saved if saved in ("dark", "light", "system") else detected
     apply_theme(app, startup_theme)
     win = App()
-    # Sync the combobox to the detected theme without re-triggering the signal
     win.theme_cb.blockSignals(True)
     win.theme_cb.setCurrentText(startup_theme.capitalize())
     win.theme_cb.blockSignals(False)

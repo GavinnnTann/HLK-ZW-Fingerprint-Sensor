@@ -1,6 +1,11 @@
 # HLK-ZW101 Tester Program
 
-A desktop tool for testing and managing the HLK-ZW101 capacitive fingerprint sensor over UART.
+A desktop tool for testing and managing the HLK-ZW101 capacitive fingerprint sensor over UART, manufactured by **Shenzhen Hi-Link Electronic Co., Ltd**. Demo provided by Hi-Link was written in chinese, and was without LED control.
+
+Built on top of the [Adafruit Fingerprint Sensor Library](https://github.com/adafruit/Adafruit-Fingerprint-Sensor-Library) protocol, adapted and extended with additional controls for easier exploration of the device's communication protocol. Designed to make it straightforward to understand how the sensor works, and can be readily adapted into other microcontroller projects or programs.
+
+<img src="Images/HL-ZW101%20Product.png" width="450" alt="Program Screenshot">
+<img src="Images/Program%20screenshot.png" width="450" alt="Program Screenshot">
 
 ---
 
@@ -14,9 +19,12 @@ A desktop tool for testing and managing the HLK-ZW101 capacitive fingerprint sen
 
 ## Circuit
 
+**FP Sensor (MX1.0-6P) → CH340 (Jumper)**
+
 <!-- Insert wiring photo here -->
 
 ---
+
 
 ## Wiring
 
@@ -24,7 +32,7 @@ Connect the module's wires to your USB-serial adapter as follows.
 
 > **Note:** TX and RX are labelled from the adapter's perspective.
 > Black (module) → adapter TX means the adapter transmits to the module.
-> Colour scheme is based on the Hi-Link distributor, colour may vary between different vendors
+> Colour scheme is based on the Hi-Link distributor above, colour may vary between different vendors.
 
 | HL-ZW101 Wire | Adapter Pin |
 |------|-------------|
@@ -32,8 +40,9 @@ Connect the module's wires to your USB-serial adapter as follows.
 | ⚫ Black (RX) | TX |
 | 🟡 Yellow (TX) | RX |
 | 🟢 Green (VCC)| 3V3 |
-| ⚪ White (V_SENSOR)| 3V3 |
 | 🔵 Blue (TOUCH_OUT) | NC (leave unconnected) |
+| ⚪ White (V_SENSOR)| 3V3 |
+
 
 ---
 
