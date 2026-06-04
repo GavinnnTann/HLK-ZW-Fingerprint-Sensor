@@ -1161,7 +1161,13 @@ class App(QMainWindow):
                 f.read(1)  # version
                 orig_id       = struct.unpack('>H', f.read(2))[0]
                 datalen       = struct.unpack('>H', f.read(2))[0]
+                if datalen > 1024:
+                    QMessageBox.critical(self, "Invalid File",
+                                         f"Template data too large ({datalen} bytes). Max expected is 1024."); return
                 template_data = f.read(datalen)
+                if len(template_data) != datalen:
+                    QMessageBox.critical(self, "Invalid File",
+                                         f"File is truncated: expected {datalen} bytes, got {len(template_data)}."); return
         except Exception as e:
             QMessageBox.critical(self, "Read Error", str(e)); return
 
