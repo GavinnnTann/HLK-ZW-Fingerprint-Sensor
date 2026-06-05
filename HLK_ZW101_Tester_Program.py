@@ -623,12 +623,14 @@ class App(QMainWindow):
         form.addWidget(QLabel("New password (8 hex chars):"), 1, 0)
         self.pwd_new = QLineEdit()
         self.pwd_new.setMaxLength(8); self.pwd_new.setPlaceholderText("00000000")
+        self.pwd_new.setEchoMode(QLineEdit.EchoMode.Password)
         self.pwd_new.setMaximumWidth(130)
         form.addWidget(self.pwd_new, 1, 1)
 
         form.addWidget(QLabel("Confirm new password:"), 2, 0)
         self.pwd_confirm = QLineEdit()
         self.pwd_confirm.setMaxLength(8); self.pwd_confirm.setPlaceholderText("00000000")
+        self.pwd_confirm.setEchoMode(QLineEdit.EchoMode.Password)
         self.pwd_confirm.setMaximumWidth(130)
         form.addWidget(self.pwd_confirm, 2, 1)
         pwd_lay.addLayout(form)
@@ -812,7 +814,7 @@ class App(QMainWindow):
         self.log_msg(f"→ 0x{cc:02X}  {CONFIRM.get(cc, f'unknown 0x{cc:02X}')}")
         return cc, data
 
-    def _recv_packets(self, timeout=5.0):
+    def _recv_packets(self, timeout=5.0, max_bytes=4096):
         """Read PID=0x02 data packets + PID=0x08 end packet; return assembled payload."""
         payload  = bytearray()
         deadline = time.time() + timeout
@@ -826,12 +828,22 @@ class App(QMainWindow):
                 self.log_msg(f"Bad header in data stream: {hdr[:2].hex().upper()}"); break
             pid    = hdr[6]
             length = struct.unpack('>H', hdr[7:9])[0]
+            if length < 2:
+                self.log_msg(f"Invalid packet length: {length}"); break
             rest   = bytearray()
             while len(rest) < length and time.time() < deadline:
                 rest += self.ser.read(max(1, length - len(rest)))
             if len(rest) < length:
                 self.log_msg("TIMEOUT reading data-stream body"); break
-            payload += rest[:-2]   # strip 2-byte checksum
+            # Validate checksum before accepting data
+            chunk      = rest[:-2]
+            cs_recv    = struct.unpack('>H', rest[-2:])[0]
+            cs_calc    = fps_checksum(pid, hdr[7:9], chunk)
+            if cs_recv != cs_calc:
+                self.log_msg(f"Checksum mismatch in data stream (got {cs_recv:04X}, expected {cs_calc:04X})"); break
+            payload += chunk
+            if len(payload) > max_bytes:
+                self.log_msg(f"Data stream exceeded {max_bytes} byte limit"); break
             if pid == 0x08:        # end packet
                 break
         return bytes(payload)
@@ -1297,13 +1309,13 @@ class App(QMainWindow):
 
         cc, _ = self.send_recv(FINGERPRINT_SETPASSWORD, new_bytes)
         if cc == 0x00:
-            self.log_msg(f"Password changed to {new_str.upper()}")
+            self.log_msg("Password changed successfully")
             self.pwd_current.setText(new_str)
             self.conn_password.setText(new_str)   # keep connection bar in sync
             self.pwd_new.clear()
             self.pwd_confirm.clear()
             QMessageBox.information(self, "Success",
-                                    f"Password changed to {new_str.upper()}.\n"
+                                    "Password changed successfully.\n"
                                     "The Connection bar password has been updated automatically.")
         else:
             self.log_msg(f"Password change failed: {CONFIRM.get(cc, f'0x{cc:02X}')}")
