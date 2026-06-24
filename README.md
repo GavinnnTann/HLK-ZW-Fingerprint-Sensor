@@ -1,14 +1,99 @@
-# HLK-ZW Fingerprint Sensor
+# HLK-ZW Fingerprint Sensor Arduino Library
 
 [![Arduino Library Manager](https://www.ardu-badge.com/badge/HLK_fingerprint.svg)](https://www.ardu-badge.com/HLK_fingerprint)
 [![Download](https://img.shields.io/github/v/release/GavinnnTann/HLK-ZW-Fingerprint-Sensor?label=Download%20Tester&style=for-the-badge)](https://github.com/GavinnnTann/HLK-ZW-Fingerprint-Sensor/releases/download/v1.1.0/HLK-ZW.Tester.Program.exe)
 
-An Arduino library and desktop tester for the HLK-ZW series capacitive fingerprint sensors (EF-01 UART protocol), manufactured by **Shenzhen Hi-Link Electronic Co., Ltd**. Supports HLK-ZW101, ZW111, ZW06xx, ZW09xx, ZW30xx, and other AS608/R307-compatible modules.
+Arduino library and desktop GUI tester for the **HLK-ZW series capacitive fingerprint scanner** (EF-01 UART protocol) by Shenzhen Hi-Link Electronic Co., Ltd. Add fingerprint enrollment, 1:N matching, RGB LED control, and template management to any Arduino or ESP32 project in minutes. Also supports AS608, R307, and all EF-01-compatible fingerprint sensor modules.
 
-The original Hi-Link demo was in Chinese and lacked LED control. This project provides a complete Arduino driver with six example sketches, plus a Python-based GUI tester for exploring the sensor over USB without writing any firmware.
+Includes a **Python desktop tester** — evaluate and manage the sensor over USB without writing a single line of firmware.
 
-<img src="extras/Images/HL-ZW101%20Product.png" width="450" alt="Product Screenshot">
-<img src="extras/Images/Program%20screenshot.png" width="450" alt="Program Screenshot">
+<img src="extras/Images/HL-ZW101%20Product.png" width="450" alt="HLK-ZW101 capacitive fingerprint sensor with CH340 USB adapter">
+<img src="extras/Images/Program%20screenshot.png" width="450" alt="HLK-ZW fingerprint sensor desktop tester GUI for Windows">
+
+---
+
+## Why This Library Exists
+
+No good English-language Arduino library existed for the HLK-ZW fingerprint sensor family. The official Hi-Link tools shipped with:
+
+- Chinese-only demo software with no English documentation
+- No Arduino library or example sketches
+- No LED control support
+- No testing workflow without custom firmware
+
+This project fills that gap: a clean Arduino API installable from the Arduino IDE Library Manager, six ready-to-run example sketches, and a no-code desktop testing application for Windows, macOS, and Linux.
+
+---
+
+## Compatible Boards
+
+Works with any board that has a hardware UART or software serial port, including:
+
+| Board | Notes |
+|-------|-------|
+| ESP32 / ESP32-S3 | Primary target; uses `Serial1` or `Serial2` |
+| Arduino Uno / Nano | Use SoftwareSerial at lower baud rates |
+| Arduino Mega 2560 | Hardware `Serial1`–`Serial3` available |
+| Arduino Leonardo | Hardware `Serial1` available |
+| STM32 (Blue Pill, Nucleo) | Any hardware UART |
+| Raspberry Pi Pico / Pico W | `Serial1` or `Serial2` |
+
+---
+
+## Architecture
+
+Two independent workflows depending on your use case:
+
+**Embedded workflow — Arduino / ESP32**
+```
++-------------------------+
+|  HLK-ZW Fingerprint     |
+|  Scanner (UART)         |
++-----------+-------------+
+            |
+            v
++-------------------------+
+|  Arduino Library        |
+|  (HLK_fingerprint.h)   |
++-----------+-------------+
+            |
+            v
++-------------------------+
+|  Your Sketch / App      |
++-------------------------+
+```
+
+**Desktop testing workflow — no firmware required**
+```
++-------------------------+
+|  HLK-ZW Fingerprint     |
+|  Scanner (UART)         |
++-----------+-------------+
+            |
+            v
++-------------------------+
+|  USB–Serial Bridge      |
+|  CH340 adapter or ESP32 |
++-----------+-------------+
+            |
+            v
++-------------------------+
+|  Python GUI Tester      |
+|  (Windows / Mac / Linux)|
++-------------------------+
+```
+
+---
+
+## Use Cases
+
+- Smart locks and door access control
+- Employee attendance and time-tracking systems
+- IoT device authentication
+- Embedded biometric security
+- Arduino and ESP32 educational projects
+- Rapid product prototyping
+- Biometric research platforms
 
 ---
 
@@ -16,7 +101,7 @@ The original Hi-Link demo was in Chinese and lacked LED control. This project pr
 
 | Item | Link |
 |------|------|
-| HLK-ZW101 Fingerprint Sensor + CH340 Adapter | https://www.aliexpress.com/item/1005011644712935.html?spm=a2g0o.order_list.order_list_main.23.417f18020u6hpK |
+| HLK-ZW101 Fingerprint Sensor + CH340 USB Adapter | https://www.aliexpress.com/item/1005011644712935.html?spm=a2g0o.order_list.order_list_main.23.417f18020u6hpK |
 
 ---
 
@@ -24,20 +109,22 @@ The original Hi-Link demo was in Chinese and lacked LED control. This project pr
 
 ### Installation
 
-**Arduino Library Manager (recommended):** Open the Arduino IDE, go to Sketch → Include Library → Manage Libraries, search for `HLK_fingerprint`, and click Install.
+**Arduino Library Manager (recommended):** In the Arduino IDE go to Sketch → Include Library → Manage Libraries, search for `HLK_fingerprint`, and click Install. Works in Arduino IDE 1.x and 2.x.
 
-**Manual:** Download or clone this repo and copy `HLK_fingerprint.h` and `HLK_fingerprint.cpp` into your Arduino libraries folder, or place them alongside your sketch.
+**Manual install:** Download or clone this repo and copy `HLK_fingerprint.h` and `HLK_fingerprint.cpp` into your Arduino libraries folder, or place them alongside your sketch.
 
-**Arduino IDE (zip install):** Sketch → Include Library → Add .ZIP Library… → select the downloaded zip.
+**Zip install:** Sketch → Include Library → Add .ZIP Library… → select the downloaded zip.
 
-### Quick Start
+### Quick Start (ESP32)
 
 ```cpp
 #include <HLK_fingerprint.h>
 
+// ESP32: sensor TX → GPIO16, sensor RX → GPIO17
 FingerprintModule fp(Serial1, /*RX=*/16, /*TX=*/17);
 
 void setup() {
+    Serial.begin(115200);
     fp.begin();           // verifies password, reads capacity
 }
 
@@ -47,9 +134,17 @@ void loop() {
     if (id >= 0)  Serial.printf("Match: ID %d  score %d\n", id, score);
     else          Serial.println("No match");
 }
+
+// Expected serial output:
+//
+//   Match: ID 3  score 85
+//
+//   or
+//
+//   No match
 ```
 
-### Supported Modules
+### Supported Fingerprint Sensor Modules
 
 | Module | Template Slots | RGB LED |
 |--------|---------------|---------|
@@ -60,17 +155,17 @@ void loop() {
 | HLK-ZW30xx | 100 | No (simple on/off) |
 | AS608 / R307 compatible | varies | depends on firmware |
 
-LED convenience wrappers (`ledBreathing`, `ledFlash`, `ledSteady`, etc.) automatically fall back to simple on/off for passive-LED variants — no code changes needed.
+LED wrappers (`ledBreathing`, `ledFlash`, `ledSteady`, etc.) automatically fall back to simple on/off for passive-LED variants — no code changes needed when switching modules.
 
-### Key API
+### API Reference
 
 ```cpp
-// Init
+// Initialization
 bool begin(uint32_t baud = 57600);
 
-// Enrollment & matching
-int16_t enrollFingerprint(uint16_t id = 0xFFFF); // 0xFFFF = auto-assign
-int16_t matchFingerprint(uint16_t &score);
+// Fingerprint enrollment and matching
+int16_t enrollFingerprint(uint16_t id = 0xFFFF); // 0xFFFF = auto-assign next free slot
+int16_t matchFingerprint(uint16_t &score);        // returns template ID or -1
 
 // Template management
 bool deleteFingerprint(uint16_t id);
@@ -78,72 +173,90 @@ bool deleteRange(uint16_t first, uint16_t last);
 bool deleteAllFingerprints();
 bool getStorageMap(bool *states, uint16_t maxSlots);
 
-// LED (auto-fallback for passive variants)
+// RGB LED control (auto-fallback for passive-LED modules)
 bool ledBreathing(uint8_t color = FP_LED_WHITE);
 bool ledFlash(uint8_t color, uint8_t cycles = 3);
 bool ledSteady(uint8_t color = FP_LED_WHITE);
 bool ledOff();
 
-// System settings
+// System configuration
 bool readSysParam(uint16_t *capacity, uint8_t *secLevel, uint8_t *pktIdx, uint8_t *baudN);
-bool setSecurityLevel(uint8_t level);  // 1–5
+bool setSecurityLevel(uint8_t level);  // 1 (lowest) – 5 (highest)
 ```
 
-### Examples
+### Example Sketches
 
 | Sketch | Description |
 |--------|-------------|
-| `enroll` | Low-level two-scan enrollment with serial prompt for ID |
-| `fingerprint` | High-level 1:N match with LED feedback |
-| `delete_fingerprint` | Single delete, range delete, or full wipe |
-| `storage_map` | ASCII grid of all template slots, auto-refreshes every 5 s |
-| `led_effects` | Cycles all LED functions and colours |
-| `system_info` | Reads and prints module system parameters |
-| `MCU_Adapter` | ESP32 as USB-CDC ↔ UART bridge for use with the Python tester |
+| `enroll` | Two-scan fingerprint enrollment with serial prompt for ID slot |
+| `fingerprint` | 1:N fingerprint matching with RGB LED feedback |
+| `delete_fingerprint` | Delete a single template, a range, or all fingerprints |
+| `storage_map` | ASCII grid of occupied and free template slots, auto-refreshes every 5 s |
+| `led_effects` | Cycles through all LED modes and colours |
+| `system_info` | Reads and prints module capacity, security level, and baud settings |
+| `MCU_Adapter` | Uses an ESP32 as a USB-CDC ↔ UART bridge for the Python desktop tester |
 
-All examples include an optional **CTRL pin** for low-power circuit designs — set `constexpr int CTRL = -1` (default, disabled) to a GPIO number to enable.
+All examples include an optional **CTRL pin** for low-power circuit designs — set `constexpr int CTRL = -1` (default, no pin) to a GPIO number to control sensor power.
+
+### Performance Notes
+
+- Default fingerprint match timeout: 10 seconds
+- Enrollment requires two successful scans of the same finger
+- Default UART baud rate: 57600
+- Matching is blocking during active scan window
+- Template storage capacity: 50–100 slots depending on module variant
 
 ---
 
-## Python Tester (Windows GUI)
+## Python Desktop Tester
 
-A standalone desktop tool for testing and managing the sensor over USB without writing firmware. Works with the CH340 adapter or an ESP32 running the `MCU_Adapter` sketch.
+A **no-code testing environment** for HLK-ZW fingerprint sensors. Evaluate enrollment, 1:N matching, LED effects, and full template management over USB — no firmware required. Compatible with the CH340 adapter or any ESP32 running the `MCU_Adapter` sketch.
 
 ### Circuit
 
-**FP Sensor (MX1.0-6P) → CH340 (Jumper)**
+**Fingerprint Sensor (MX1.0-6P connector) → CH340 USB Adapter**
 
-<img src="extras/Images/Circuit.png" width="450" alt="Setup">
+<img src="extras/Images/Circuit.png" width="450" alt="HLK-ZW101 fingerprint sensor wiring diagram to CH340 USB adapter">
 
-### Wiring
+### Wiring — CH340 USB Adapter
 
-Connect the module's wires to your USB-serial adapter as follows. Microcontrollers like ESP32, Arduino, STM32, Pico, and Raspberry Pi can also be used in place of the CH340 adapter (see `MCU_Adapter` example).
-
-> **Note:** TX and RX are labelled from the adapter's perspective.
-> Black (module) → adapter TX means the adapter transmits to the module.
-> Colour scheme is based on the Hi-Link distributor above; colours may vary between vendors.
+> **Note:** TX and RX labels are from the adapter's perspective.
+> Colour scheme matches the Hi-Link distributor linked above; wire colours vary between vendors.
 >
-> **TOUCH_OUT (Blue):** Leave unconnected for USB testing.
-> For embedded use, connect to a GPIO — the sensor asserts this HIGH when a finger is detected,
-> making it suitable for interrupt-driven wakeup from deep sleep on ESP32/STM32.
-> Low power design is available — refer to the [datasheet](extras/HLK-ZW101%20Datasheet.pdf).
+> **TOUCH_OUT (Blue):** Leave unconnected for USB desktop testing.
+> For embedded use, connect to any GPIO — the sensor asserts this HIGH when a finger is detected,
+> which makes it ideal for interrupt-driven wakeup from deep sleep on ESP32 and STM32.
+> See the [datasheet](extras/HLK-ZW101%20Datasheet.pdf) for low-power circuit design details.
 
-| HLK-ZW101 Wire | Adapter Pin |
-|------|-------------|
+| HLK-ZW101 Wire | CH340 Adapter Pin |
+|----------------|-------------------|
 | 🔴 Red (GND) | GND |
 | ⚫ Black (RX) | TX |
 | 🟡 Yellow (TX) | RX |
 | 🟢 Green (VCC) | 3V3 |
-| 🔵 Blue (TOUCH_OUT) | NC (leave unconnected for USB testing) |
+| 🔵 Blue (TOUCH_OUT) | NC (not connected for USB testing) |
 | ⚪ White (V_SENSOR) | 3V3 |
 
-### Requirements (source)
+### ESP32 Wiring (MCU_Adapter sketch)
+
+Use an ESP32 as the USB bridge instead of a CH340 adapter:
+
+| HLK-ZW101 Wire | ESP32 Pin |
+|----------------|-----------|
+| 🟡 Yellow (TX) | GPIO16 (RX2) |
+| ⚫ Black (RX)  | GPIO17 (TX2) |
+| 🟢 Green (VCC) | 3.3V |
+| 🔴 Red (GND)   | GND |
+| ⚪ White (V_SENSOR) | 3V3 |
+| 🔵 Blue (TOUCH_OUT) | NC (not connected for USB testing) |
+
+### Requirements (running from source)
 
 - Python 3.10+
-- Windows / macOS / Linux
-- A USB-serial adapter (CH340, CP2102, or FTDI recommended for auto-detection)
+- Windows, macOS, or Linux
+- USB-serial adapter (CH340, CP2102, or FTDI — recommended for auto COM port detection)
 
-### Installation (source)
+### Installation (running from source)
 
 ```bash
 pip install -r requirements.txt
@@ -152,21 +265,36 @@ python HLK_ZW_Tester_Program.py
 
 ### Quick Start
 
-1. Plug in your USB-serial adapter with the sensor wired up
-2. Click **Refresh** — the correct COM port is usually selected automatically
-3. Set the baud rate to **57600** (default)
-4. Click **Connect** — the tool will automatically verify the module and load the storage map
-5. Use **Enrollment** to register a fingerprint, then **Match** under Verification to test it
+1. Plug in your USB-serial adapter with the fingerprint sensor wired up
+2. Click **Refresh** — the correct COM port is usually detected automatically
+3. Set baud rate to **57600** (default for HLK-ZW sensors)
+4. Click **Connect** — the tester verifies the module password and loads the template storage map
+5. Click **Enrollment** to register a fingerprint, then **Match** under Verification to test recognition
 
 ### Features
 
-- **Auto-connect query** — verifies password, reads system parameters, and loads the storage map on every connection
-- **Storage map** — visual grid showing all template slots at a glance
-- **Enrollment** — two-scan enroll with progress feedback; auto-selects next free slot
-- **Verification** — 1:N match with adjustable timeout and confidence score
-- **Template management** — check, delete single, delete range, wipe all
-- **LED control** — all 6 modes (Breathing, Flash, Steady On, Gradually Open, Gradually Close, Off); falls back to simple on/off for passive-LED variants
-- **Settings** — security level, baud rate, packet size, password change
+- **Auto-connect** — on connect, verifies module password, reads system parameters, and loads the full storage map automatically
+- **Storage map** — visual grid of all occupied and free fingerprint template slots
+- **Enrollment** — two-scan enrollment with live progress feedback; auto-selects the next available slot
+- **1:N Matching** — fingerprint recognition with adjustable timeout and confidence score display
+- **Template management** — inspect, delete single slot, delete a range, or wipe all templates
+- **LED control** — all 6 LED modes (Breathing, Flash, Steady On, Gradually Open, Gradually Close, Off); auto-falls back to simple on/off for passive-LED modules
+- **Settings panel** — configure security level, baud rate, packet size, and module password
+
+---
+
+## Comparison with Adafruit Fingerprint Sensor Library
+
+| Feature | Adafruit Library | HLK-ZW Library |
+|---------|-----------------|----------------|
+| HLK-ZW101 / ZW111 support | ❌ | ✅ |
+| AS608 / R307 support | ✅ | ✅ |
+| RGB LED control (6 modes) | Limited | ✅ |
+| Desktop GUI tester | ❌ | ✅ |
+| Template storage map viewer | ❌ | ✅ |
+| Auto slot assignment on enroll | ❌ | ✅ |
+| TOUCH_OUT interrupt / low-power support | ❌ | ✅ |
+| Arduino Library Manager | ✅ | ✅ |
 
 ---
 
