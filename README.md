@@ -1,5 +1,6 @@
 # HLK-ZW Fingerprint Sensor Arduino Library
 
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/gavinnntann/library/HLK_fingerprint.svg)](https://registry.platformio.org/libraries/gavinnntann/HLK_fingerprint)
 [![Arduino Library Manager](https://www.ardu-badge.com/badge/HLK_fingerprint.svg)](https://www.ardu-badge.com/HLK_fingerprint)
 [![Download](https://img.shields.io/github/v/release/GavinnnTann/HLK-ZW-Fingerprint-Sensor?label=Download%20Tester&style=for-the-badge)](https://github.com/GavinnnTann/HLK-ZW-Fingerprint-Sensor/releases/download/v1.1.0/HLK-ZW.Tester.Program.exe)
 
