@@ -213,8 +213,13 @@ All examples include an optional **CTRL pin** for low-power circuit designs — 
 
 ## Web Tester (no install)
 
+### ▶ [Open the tester → hlk-fingerprint-web-tester.vercel.app](https://hlk-fingerprint-web-tester.vercel.app)
+
 A browser-based tester that talks to the sensor over the **Web Serial API** —
 same feature set as the Python tester, nothing to download.
+
+<img src="extras/Images/Web%20Tester%20Light.png" width="450" alt="HLK-ZW web tester in light mode showing device info, capability probe, enrollment and storage map">
+<img src="extras/Images/Web%20Tester%20Dark.png" width="450" alt="HLK-ZW web tester in dark mode">
 
 **Chromium-only** (Chrome, Edge, Opera, Arc). Firefox and Safari do not
 implement Web Serial; use the Python tester below on those.
@@ -222,6 +227,14 @@ implement Web Serial; use the Python tester below on those.
 Beyond feature parity it adds a **capability probe**: it asks the module which
 optional opcodes it actually implements and shows the result, so an unusual
 variant explains itself instead of surfacing as a confusing confirm code.
+
+| | Web Tester | Python Tester |
+|---|---|---|
+| Install required | None — open a link | `.exe` download or Python 3.10+ |
+| Browsers / platforms | Chrome, Edge, Opera, Arc | Windows, macOS, Linux |
+| Full protocol feature set | ✅ | ✅ |
+| Capability probe | ✅ | ❌ |
+| Problem reporting with logs | ✅ | ❌ |
 
 Source and setup: [extras/web/](extras/web/)
 

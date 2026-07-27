@@ -6,3 +6,6 @@ dist/
 
 .vercel
 .env*.local
+
+# Vite cache when cacheDir is overridden
+.vite/

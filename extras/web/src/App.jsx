@@ -8,6 +8,7 @@ import ManageTab from './components/ManageTab.jsx';
 import SettingsTab from './components/SettingsTab.jsx';
 import LogPanel from './components/LogPanel.jsx';
 import { ThemeToggle } from './components/ui.jsx';
+import RegistryLinks from './components/RegistryLinks.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
 import { REPO_URL } from './lib/report.js';
 
@@ -448,13 +449,14 @@ export default function App() {
   return (
     <div className="app">
       <header className="topbar">
+        {/* BASE_URL keeps the public asset resolvable under any deploy path,
+            which a hardcoded /favicon.ico would not be with base: './'. */}
+        <img className="brand" src={`${import.meta.env.BASE_URL}favicon.ico`} alt="" width="26" height="26" />
         <h1>HLK-ZW Fingerprint Tester</h1>
         <span className="sub">Web Serial · no install required</span>
         <span className="spacer" />
+        <RegistryLinks compact />
         <ThemeToggle isDark={isDark} onToggle={() => setTheme(isDark ? 'light' : 'dark')} />
-        <a href={REPO_URL} target="_blank" rel="noreferrer">
-          <button className="sm ghost">GitHub</button>
-        </a>
       </header>
 
       <ConnectionBar
@@ -508,6 +510,14 @@ export default function App() {
           onReport={() => setShowReport(true)}
         />
       </div>
+
+      <footer className="card" style={{ marginTop: 14 }}>
+        <p className="install-note">
+          Sensor working? Add it to your project — the Arduino library speaks the
+          same protocol as this page, including the ZW30xx search fallback.
+        </p>
+        <RegistryLinks />
+      </footer>
 
       {showReport && (
         <ReportDialog

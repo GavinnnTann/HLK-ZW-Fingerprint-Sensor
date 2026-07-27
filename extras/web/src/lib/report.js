@@ -13,6 +13,8 @@ const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 const TABLE = 'reports';
 
 export const REPO_URL = 'https://github.com/GavinnnTann/HLK-ZW-Fingerprint-Sensor';
+export const ARDUINO_URL = 'https://www.ardu-badge.com/HLK_fingerprint';
+export const PLATFORMIO_URL = 'https://registry.platformio.org/libraries/gavinnntann/HLK_fingerprint';
 
 export function isSupabaseConfigured() {
   return !!(SUPABASE_URL && SUPABASE_ANON_KEY);
