@@ -1,0 +1,127 @@
+name: Deploy Web Tester
+
+# Deploys extras/web to Vercel.
+#
+# This runs through GitHub Actions rather than Vercel's native Git integration
+# so the protocol conformance tests gate the deploy. src/protocol/ is a third
+# implementation of the EF-01 wire protocol (alongside the Arduino library and
+# the Python tester) and test/protocol.test.mjs pins it against real captured
+# packets — a drifting build must not reach users.
+#
+# Pushes to main go to production; pull requests get a preview URL posted back
+# to the PR.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extras/web/**'
+      - '.github/workflows/deploy-vercel.yml'
+  pull_request:
+    paths:
+      - 'extras/web/**'
+      - '.github/workflows/deploy-vercel.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write
+
+concurrency:
+  group: vercel-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+  VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extras/web
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: extras/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      # Gate the deploy. If the protocol layer drifts from the captured
+      # hardware behaviour, nothing ships.
+      - name: Protocol tests
+        run: npm test
+
+      # Forks and un-provisioned repos have no Vercel credentials. Skip the
+      # deploy with an explanatory notice rather than failing on a cryptic
+      # "--token is missing a value" from the CLI.
+      - name: Check Vercel credentials
+        id: creds
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ] \
+             && [ -n "${{ secrets.VERCEL_ORG_ID }}" ] \
+             && [ -n "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel secrets not configured — build verified, deploy skipped. See extras/web/README.md."
+            echo "### Deploy skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Tests and build passed. Set VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID to enable deploys." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Without credentials, still prove the app compiles.
+      - name: Build (verify only)
+        if: steps.creds.outputs.configured != 'true'
+        run: npm run build
+
+      - name: Install Vercel CLI
+        if: steps.creds.outputs.configured == 'true'
+        run: npm install --global vercel@latest
+
+      # Pulls project settings and environment variables (including
+      # VITE_SUPABASE_*) from the Vercel project, so secrets live in one place.
+      - name: Pull Vercel environment
+        if: steps.creds.outputs.configured == 'true'
+        run: >-
+          vercel pull --yes
+          --environment=${{ github.event_name == 'push' && 'production' || 'preview' }}
+          --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Build
+        if: steps.creds.outputs.configured == 'true'
+        run: vercel build ${{ github.event_name == 'push' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
+
+      - name: Deploy
+        if: steps.creds.outputs.configured == 'true'
+        id: deploy
+        run: |
+          url=$(vercel deploy --prebuilt ${{ github.event_name == 'push' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }})
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "Deployed to $url"
+          echo "### Web tester deployed" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Comment preview URL on PR
+        if: github.event_name == 'pull_request' && steps.creds.outputs.configured == 'true'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const url = '${{ steps.deploy.outputs.url }}';
+            const marker = '<!-- vercel-preview -->';
+            const body = `${marker}\n**Web tester preview:** ${url}\n\n` +
+              `Web Serial needs a Chromium browser (Chrome, Edge, Opera, Arc).`;
+            const { owner, repo } = context.repo;
+            const issue_number = context.issue.number;
+            const comments = await github.rest.issues.listComments({ owner, repo, issue_number });
+            const existing = comments.data.find(c => c.body?.includes(marker));
+            if (existing) {
+              await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
+            } else {
+              await github.rest.issues.createComment({ owner, repo, issue_number, body });
+            }

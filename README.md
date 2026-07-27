@@ -211,6 +211,22 @@ All examples include an optional **CTRL pin** for low-power circuit designs — 
 
 ---
 
+## Web Tester (no install)
+
+A browser-based tester that talks to the sensor over the **Web Serial API** —
+same feature set as the Python tester, nothing to download.
+
+**Chromium-only** (Chrome, Edge, Opera, Arc). Firefox and Safari do not
+implement Web Serial; use the Python tester below on those.
+
+Beyond feature parity it adds a **capability probe**: it asks the module which
+optional opcodes it actually implements and shows the result, so an unusual
+variant explains itself instead of surfacing as a confusing confirm code.
+
+Source and setup: [extras/web/](extras/web/)
+
+---
+
 ## Python Desktop Tester
 
 A **no-code testing environment** for HLK-ZW fingerprint sensors. Evaluate enrollment, 1:N matching, LED effects, and full template management over USB — no firmware required. Compatible with the CH340 adapter or any ESP32 running the `MCU_Adapter` sketch.
