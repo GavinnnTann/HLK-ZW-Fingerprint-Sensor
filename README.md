@@ -3,13 +3,34 @@
 [![PlatformIO Registry](https://badges.registry.platformio.org/packages/gavinnntann/library/HLK_fingerprint.svg)](https://registry.platformio.org/libraries/gavinnntann/HLK_fingerprint)
 [![Arduino Library Manager](https://www.ardu-badge.com/badge/HLK_fingerprint.svg)](https://www.ardu-badge.com/HLK_fingerprint)
 [![Download](https://img.shields.io/github/v/release/GavinnnTann/HLK-ZW-Fingerprint-Sensor?label=Download%20Tester&style=for-the-badge)](https://github.com/GavinnnTann/HLK-ZW-Fingerprint-Sensor/releases/download/v1.1.0/HLK-ZW.Tester.Program.exe)
+[![Web Tester](https://img.shields.io/badge/Web%20Tester-Open%20in%20browser-2563eb?style=for-the-badge)](https://hlk-fingerprint-web-tester.vercel.app)
 
-Arduino library and desktop GUI tester for the **HLK-ZW series capacitive fingerprint scanner** (EF-01 UART protocol) by Shenzhen Hi-Link Electronic Co., Ltd. Add fingerprint enrollment, 1:N matching, RGB LED control, and template management to any Arduino or ESP32 project in minutes. Also supports AS608, R307, and all EF-01-compatible fingerprint sensor modules.
+Arduino library and no-code testers for the **HLK-ZW series capacitive fingerprint scanner** (EF-01 UART protocol) by Shenzhen Hi-Link Electronic Co., Ltd. Add fingerprint enrollment, 1:N matching, RGB LED control, and template management to any Arduino or ESP32 project in minutes. Also supports AS608, R307, and all EF-01-compatible fingerprint sensor modules.
 
-Includes a **Python desktop tester** — evaluate and manage the sensor over USB without writing a single line of firmware.
+---
 
-<img src="extras/Images/HL-ZW101%20Product.png" width="450" alt="HLK-ZW101 capacitive fingerprint sensor with CH340 USB adapter">
-<img src="extras/Images/Program%20screenshot.png" width="450" alt="HLK-ZW fingerprint sensor desktop tester GUI for Windows">
+## ▶ Try It Now — Nothing to Install
+
+### [Open the Web Tester](https://hlk-fingerprint-web-tester.vercel.app)
+
+Wire the sensor to a USB-serial adapter, open the link, click **Connect**. Enroll fingerprints, run 1:N matching, drive the LED and manage templates straight from the browser over the **Web Serial API** — no download, no firmware, no Python.
+
+<img src="extras/Images/Web%20Tester%20Light.png" width="450" alt="HLK-ZW web tester in light mode showing device info, capability probe, enrollment and storage map">
+<img src="extras/Images/Web%20Tester%20Dark.png" width="450" alt="HLK-ZW web tester in dark mode">
+
+**Chromium-only** — Chrome, Edge, Opera, Arc. Firefox and Safari do not implement Web Serial; use the [Python desktop tester](#python-desktop-tester) there.
+
+Beyond matching the Python tester feature for feature, it adds a **capability probe**: it asks your module which optional opcodes it actually implements and shows the result, so an unusual variant explains itself instead of surfacing as a confusing confirm code.
+
+| | Web Tester | Python Tester |
+|---|---|---|
+| Install required | None — open a link | `.exe` download or Python 3.10+ |
+| Browsers / platforms | Chrome, Edge, Opera, Arc | Windows, macOS, Linux |
+| Full protocol feature set | ✅ | ✅ |
+| Capability probe | ✅ | ❌ |
+| Problem reporting with logs | ✅ | ❌ |
+
+Source and setup: [extras/web/](extras/web/)
 
 ---
 
@@ -22,7 +43,7 @@ No good English-language Arduino library existed for the HLK-ZW fingerprint sens
 - No LED control support
 - No testing workflow without custom firmware
 
-This project fills that gap: a clean Arduino API installable from the Arduino IDE Library Manager, six ready-to-run example sketches, and a no-code desktop testing application for Windows, macOS, and Linux.
+This project fills that gap: a clean Arduino API installable from the Arduino IDE Library Manager, six ready-to-run example sketches, and two no-code testers — one in the browser, one native for Windows, macOS and Linux.
 
 ---
 
@@ -64,7 +85,7 @@ Two independent workflows depending on your use case:
 +-------------------------+
 ```
 
-**Desktop testing workflow — no firmware required**
+**Testing workflow — no firmware required**
 ```
 +-------------------------+
 |  HLK-ZW Fingerprint     |
@@ -77,11 +98,14 @@ Two independent workflows depending on your use case:
 |  CH340 adapter or ESP32 |
 +-----------+-------------+
             |
-            v
-+-------------------------+
-|  Python GUI Tester      |
-|  (Windows / Mac / Linux)|
-+-------------------------+
+      +-----+-----+
+      |           |
+      v           v
++-----------+ +-----------------+
+| Web       | | Python GUI      |
+| Tester    | | Tester          |
+| (Chromium)| | (Win/Mac/Linux) |
++-----------+ +-----------------+
 ```
 
 ---
@@ -99,6 +123,8 @@ Two independent workflows depending on your use case:
 ---
 
 ## Where to Buy
+
+<img src="extras/Images/HL-ZW101%20Product.png" width="450" alt="HLK-ZW101 capacitive fingerprint sensor with CH340 USB adapter">
 
 | Item | Link |
 |------|------|
@@ -211,38 +237,12 @@ All examples include an optional **CTRL pin** for low-power circuit designs — 
 
 ---
 
-## Web Tester (no install)
-
-### ▶ [Open the tester → hlk-fingerprint-web-tester.vercel.app](https://hlk-fingerprint-web-tester.vercel.app)
-
-A browser-based tester that talks to the sensor over the **Web Serial API** —
-same feature set as the Python tester, nothing to download.
-
-<img src="extras/Images/Web%20Tester%20Light.png" width="450" alt="HLK-ZW web tester in light mode showing device info, capability probe, enrollment and storage map">
-<img src="extras/Images/Web%20Tester%20Dark.png" width="450" alt="HLK-ZW web tester in dark mode">
-
-**Chromium-only** (Chrome, Edge, Opera, Arc). Firefox and Safari do not
-implement Web Serial; use the Python tester below on those.
-
-Beyond feature parity it adds a **capability probe**: it asks the module which
-optional opcodes it actually implements and shows the result, so an unusual
-variant explains itself instead of surfacing as a confusing confirm code.
-
-| | Web Tester | Python Tester |
-|---|---|---|
-| Install required | None — open a link | `.exe` download or Python 3.10+ |
-| Browsers / platforms | Chrome, Edge, Opera, Arc | Windows, macOS, Linux |
-| Full protocol feature set | ✅ | ✅ |
-| Capability probe | ✅ | ❌ |
-| Problem reporting with logs | ✅ | ❌ |
-
-Source and setup: [extras/web/](extras/web/)
-
----
-
 ## Python Desktop Tester
 
-A **no-code testing environment** for HLK-ZW fingerprint sensors. Evaluate enrollment, 1:N matching, LED effects, and full template management over USB — no firmware required. Compatible with the CH340 adapter or any ESP32 running the `MCU_Adapter` sketch.
+A **no-code testing environment** for HLK-ZW fingerprint sensors, for Firefox and Safari users or anyone who prefers a native app. Evaluate enrollment, 1:N matching, LED effects, and full template management over USB — no firmware required. Compatible with the CH340 adapter or any ESP32 running the `MCU_Adapter` sketch.
+
+<img src="extras/Images/Program%20screenshot.png" width="450" alt="HLK-ZW fingerprint sensor desktop tester GUI for Windows">
+
 
 ### Circuit
 
