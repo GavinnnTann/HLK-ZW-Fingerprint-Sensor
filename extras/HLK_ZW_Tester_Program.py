@@ -63,13 +63,16 @@ _VARIANT_MAP = {
     100: "ZW111 / ZW06xx / ZW09xx / ZW30xx",
 }
 
+# Confirmation codes per "Fingerprint module V1.1 (communication protocol)" §3.2.
 CONFIRM = {
     0x00: "OK",
     0x01: "Packet receive error",
     0x02: "No finger on sensor",
     0x03: "Image capture failed",
+    0x04: "Image too dry / too light",
+    0x05: "Image too wet / smudged",
     0x06: "Image too messy",
-    0x07: "Feature extraction failed",
+    0x07: "Feature extraction failed — too few minutiae",
     0x08: "No match",
     0x09: "Not found in library",
     0x0A: "Enroll mismatch — scans didn't match",
@@ -80,14 +83,47 @@ CONFIRM = {
     0x0F: "Upload image failed",
     0x10: "Delete failed",
     0x11: "Library clear failed",
+    0x12: "Cannot enter low-power state",
     0x13: "Wrong password",
     0x15: "Invalid image",
+    0x16: "Online upgrade failed",
+    0x17: "Residual fingerprint — finger did not move between scans",
     0x18: "Flash write error",
+    0x19: "Random number generation failed",
     0x1A: "Invalid register number",
-    0x21: "Password verify error",
+    0x1B: "Invalid register content",
+    0x1C: "Bad notepad page number",
+    0x1D: "Port operation failed",
+    0x1E: "Auto-enroll failed",
+    0x1F: "Library full",
+    0x20: "Device address error",
+    0x21: "Password incorrect",
+    0x22: "Template slot not empty",
+    0x23: "Template slot empty",
+    0x24: "Library is empty",
+    0x25: "Entry count set incorrectly",
+    0x26: "Timeout",
+    0x27: "Fingerprint already enrolled",
+    0x28: "Fingerprint features are related",
+    0x29: "Sensor operation failed",
+    0x31: "Command not permitted at this encryption level",
+    0x33: "Image area too small",
+    0x34: "Image not available",
+    0x35: "Illegal data",
     0xFE: "Bad packet",
     0xFF: "Timeout",
 }
+
+
+def is_search_reply(cc, data):
+    """True if cc/data is a genuine answer to a search command.
+
+    Anything else — including 0x00 with no payload — means the firmware did not
+    run the search, typically because it does not implement the opcode.
+    """
+    if cc == 0x00:
+        return bool(data) and len(data) >= 4
+    return cc in (0x09, 0x17, 0x24)
 
 
 # ── Packet helpers ──────────────────────────────────────────────────────────────
@@ -243,6 +279,7 @@ class App(QMainWindow):
         self._capacity      = 50
         self._map_states    = [False] * 50
         self._enroll_cancel = threading.Event()
+        self._hispeed_search = True   # cleared if the module rejects 0x1B
         self._build()
         self.statusBar().addPermanentWidget(QLabel("by @GavinnnTann"))
 
@@ -742,6 +779,7 @@ class App(QMainWindow):
                 self.ser.rts = False
                 time.sleep(0.3)
                 self.ser.reset_input_buffer()
+                self._hispeed_search = True   # re-probe 0x1B on the new module
                 self.conn_btn.setText("Disconnect")
                 self.conn_lbl.setText("● Connected")
                 self.conn_lbl.setStyleSheet("color: green; font-weight: bold;")
@@ -1134,12 +1172,25 @@ class App(QMainWindow):
 
             cap      = self._capacity
             cap_h, cap_l = (cap >> 8) & 0xFF, cap & 0xFF
-            cc, data = self.send_recv(FINGERPRINT_HISPEEDSEARCH,
-                                      bytes([0x01, 0x00, 0x00, cap_h, cap_l]))
-            if cc == 0x00 and (not data or len(data) < 4):
-                self.log_msg("HISPEEDSEARCH no payload — trying SEARCH fallback")
-                cc, data = self.send_recv(FINGERPRINT_SEARCH,
-                                          bytes([0x01, 0x00, 0x00, cap_h, cap_l]))
+            params   = bytes([0x01, 0x00, 0x00, cap_h, cap_l])
+
+            # HISPEEDSEARCH (0x1B) is a Synochip/AS608-era extension, not part of
+            # the Hi-Link EF-01 instruction set (protocol manual V1.1). ZW1xx
+            # firmware accepts it, ZW30xx rejects it with 0x13 "wrong password".
+            # Probe once, then stay on the documented SEARCH (0x04).
+            cc, data = None, b''
+            if self._hispeed_search:
+                cc, data = self.send_recv(FINGERPRINT_HISPEEDSEARCH, params)
+                # cc is None on a comm error, which says nothing about opcode
+                # support — only latch off when the module actually replied.
+                if cc is not None and not is_search_reply(cc, data):
+                    self._hispeed_search = False
+                    self.log_msg(f"HISPEEDSEARCH (0x1B) rejected with "
+                                 f"{CONFIRM.get(cc, f'0x{cc:02X}')} — this firmware does not "
+                                 f"implement it; using SEARCH (0x04) from now on")
+                    cc, data = self.send_recv(FINGERPRINT_SEARCH, params)
+            else:
+                cc, data = self.send_recv(FINGERPRINT_SEARCH, params)
 
             if cc == 0x00 and data and len(data) >= 4:
                 fp_id = struct.unpack('>H', data[0:2])[0]
@@ -1150,7 +1201,7 @@ class App(QMainWindow):
             elif cc in (0x09, 0x00):
                 set_result("NO MATCH", "red")
                 self._ui(lambda: self.match_detail.setText(""))
-            elif cc == 0x1E:
+            elif cc == 0x24:
                 set_result("Library is empty", "red")
                 self._ui(lambda: self.match_detail.setText(""))
             else:

@@ -73,9 +73,16 @@ public:
     // ── Matching ──────────────────────────────────────────────────────────────
 
     // Blocking 1:N match. Polls GetImage within timeoutMs, extracts features,
-    // runs HiSpeedSearch (falls back to Search if needed).
+    // runs HiSpeedSearch (falls back to Search if the firmware rejects it).
     // Returns matched ID (≥0), -1 = no match, -2 = error / timeout.
     int16_t matchFingerprint(uint16_t &score, uint32_t timeoutMs = 10000);
+
+    // True while HiSpeedSearch (0x1B) is still being attempted. Cleared
+    // automatically on the first match if the module rejects the opcode —
+    // ZW30xx firmware answers 0x13 because 0x1B is not in the Hi-Link
+    // command set. Call useHiSpeedSearch(false) to skip the probe entirely.
+    bool hiSpeedSearch() const { return _hiSpeedOk; }
+    void useHiSpeedSearch(bool on) { _hiSpeedOk = on; }
 
     // ── Deletion ──────────────────────────────────────────────────────────────
 
@@ -161,6 +168,11 @@ private:
     HardwareSerial &_serial;
     int _rxPin, _txPin, _touchPin, _pwrPin;
     uint16_t _capacity = 50;  // populated from readSysParam() in begin()
+    bool _hiSpeedOk = true;   // cleared once the module rejects HiSpeedSearch
+
+    // True if cc/dlen is a genuine answer to a search command, as opposed to
+    // the module refusing an opcode it does not implement.
+    static bool _isSearchReply(uint8_t cc, uint8_t dlen);
 
     // Build command packet into out[]. Returns total byte count.
     // out[] must be at least 11 + plen bytes.

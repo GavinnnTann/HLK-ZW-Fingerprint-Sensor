@@ -373,14 +373,26 @@ int16_t FingerprintModule::matchFingerprint(uint16_t &score, uint32_t timeoutMs)
 
     if (!image2Tz(1)) return -2;
 
-    // HiSpeedSearch from page 0 across all capacity slots
+    // Search from page 0 across all capacity slots. Both opcodes take the same
+    // params: BufferID, StartPage(2), PageNum(2).
     uint8_t p[5] = { 0x01, 0x00, 0x00,
                      (uint8_t)(_capacity >> 8), (uint8_t)(_capacity & 0xFF) };
     uint8_t dout[8]; uint8_t dlen = 0;
-    uint8_t cc = _sendRecv(INS_HISPEEDSEARCH, p, 5, dout, dlen);
+    uint8_t cc = 0xFF;
 
-    // Some firmware returns CC=0x00 but sends no payload on HiSpeedSearch — fall back
-    if (cc == 0x00 && dlen < 4) {
+    // HiSpeedSearch (0x1B) is a Synochip/AS608-era extension, not part of the
+    // Hi-Link EF-01 instruction set (protocol manual V1.1). ZW1xx firmware
+    // accepts it, ZW30xx rejects it with 0x13 "wrong password". Probe once,
+    // then stay on the documented Search (0x04) for the rest of the session.
+    if (_hiSpeedOk) {
+        cc = _sendRecv(INS_HISPEEDSEARCH, p, 5, dout, dlen);
+        // 0xFF/0xFE are transport failures and say nothing about opcode
+        // support — only latch off when the module actually replied.
+        if (cc != 0xFF && cc != 0xFE && !_isSearchReply(cc, dlen)) {
+            _hiSpeedOk = false;
+            cc = _sendRecv(INS_SEARCH, p, 5, dout, dlen);
+        }
+    } else {
         cc = _sendRecv(INS_SEARCH, p, 5, dout, dlen);
     }
 
@@ -389,7 +401,16 @@ int16_t FingerprintModule::matchFingerprint(uint16_t &score, uint32_t timeoutMs)
         score = ((uint16_t)dout[2] << 8) | dout[3];
         return (int16_t)matchId;
     }
-    return (cc == 0x09) ? -1 : -2;  // 0x09 = not found; anything else = error
+    // 0x09 = not found, 0x24 = library empty; anything else is a real error
+    return (cc == 0x09 || cc == 0x24) ? -1 : -2;
+}
+
+// A search command answers with a match payload (ID + score), "not found",
+// "library empty", or "residual fingerprint". Any other confirm code — and
+// 0x00 with no payload — means the firmware did not run the search.
+bool FingerprintModule::_isSearchReply(uint8_t cc, uint8_t dlen) {
+    if (cc == 0x00) return dlen >= 4;
+    return cc == 0x09 || cc == 0x17 || cc == 0x24;
 }
 
 // ─── Deletion ─────────────────────────────────────────────────────────────────

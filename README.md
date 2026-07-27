@@ -153,10 +153,12 @@ void loop() {
 | HLK-ZW111 | 100 | Yes (AURALEDCONFIG) |
 | HLK-ZW06xx | 50 or 100 | No (simple on/off) |
 | HLK-ZW09xx | 50 or 100 | No (simple on/off) |
-| HLK-ZW30xx | 100 | No (simple on/off) |
+| HLK-ZW30xx (ZW3020 / ZW3021) | 100 | None — no LED on the module |
 | AS608 / R307 compatible | varies | depends on firmware |
 
-LED wrappers (`ledBreathing`, `ledFlash`, `ledSteady`, etc.) automatically fall back to simple on/off for passive-LED variants — no code changes needed when switching modules.
+LED wrappers (`ledBreathing`, `ledFlash`, `ledSteady`, etc.) automatically fall back to simple on/off for passive-LED variants — no code changes needed when switching modules. The ZW302x has no LED hardware at all (6-pin: VCC-S, INT, VCC-D, UART-TX, UART-RX, GND), so all LED calls return `false` there.
+
+**Note on ZW302x matching:** `matchFingerprint()` prefers HiSpeedSearch (`0x1B`), which is a Synochip/AS608-era extension rather than part of the Hi-Link EF-01 instruction set. ZW30xx firmware rejects it with confirm code `0x13` ("wrong password"). The library probes it once, then falls back to the documented Search (`0x04`) for the rest of the session — no configuration needed. Call `useHiSpeedSearch(false)` after `begin()` to skip the probe.
 
 ### API Reference
 
