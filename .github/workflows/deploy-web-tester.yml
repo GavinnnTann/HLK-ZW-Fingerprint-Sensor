@@ -1,0 +1,66 @@
+name: Deploy Web Tester
+
+# Publishes extras/web to GitHub Pages. Uses the Actions source (Settings →
+# Pages → Source: GitHub Actions) rather than a branch, so the app can live in
+# extras/ — the Arduino-spec home for non-library content — instead of being
+# restructured into /docs at the repo root.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'extras/web/**'
+      - '.github/workflows/deploy-web-tester.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Never let two deploys race; queue instead of cancelling so a merge always
+# ends with the newest commit live.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: extras/web
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: extras/web/package-lock.json
+
+      - name: Install
+        run: npm ci
+
+      - name: Protocol tests
+        run: npm test
+
+      - name: Build
+        run: npm run build
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_ANON_KEY: ${{ secrets.VITE_SUPABASE_ANON_KEY }}
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: extras/web/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
