@@ -42,11 +42,11 @@ jobs:
       run:
         working-directory: extras/web
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
           cache-dependency-path: extras/web/package-lock.json
 
@@ -109,7 +109,7 @@ jobs:
 
       - name: Comment preview URL on PR
         if: github.event_name == 'pull_request' && steps.creds.outputs.configured == 'true'
-        uses: actions/github-script@v7
+        uses: actions/github-script@v9
         with:
           script: |
             const url = '${{ steps.deploy.outputs.url }}';
