@@ -105,12 +105,16 @@ create policy "anon can submit reports"
   on public.reports for insert to anon with check (true);
 ```
 
-Then add two repository secrets (Settings → Secrets and variables → Actions):
+Then add the two variables to the **Vercel project** (Settings → Environment
+Variables), for both Production and Preview:
 
-| Secret | Value |
+| Variable | Value |
 |---|---|
 | `VITE_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `VITE_SUPABASE_ANON_KEY` | the project's `anon` / publishable key |
+
+`vercel pull` fetches these during the build, so they live in one place rather
+than being duplicated as GitHub secrets.
 
 The anon key is designed to be public and ships in the JavaScript bundle. What
 protects the table is the RLS policy, not the key — never put the `service_role`
@@ -121,13 +125,32 @@ For local development, put the same two variables in `extras/web/.env.local`
 
 ## Deployment
 
-[`.github/workflows/deploy-web-tester.yml`](../../.github/workflows/deploy-web-tester.yml)
-builds and publishes to GitHub Pages on every push to `main` that touches
-`extras/web/`. It requires **Settings → Pages → Source: GitHub Actions** — the
-classic branch source cannot serve from `extras/`.
+[`.github/workflows/deploy-vercel.yml`](../../.github/workflows/deploy-vercel.yml)
+deploys to Vercel. Pushes to `main` that touch `extras/web/` go to production;
+pull requests get a preview URL commented back on the PR.
 
-`vite.config.js` sets `base: './'`, so the build works from a project subpath, a
-custom domain or `file://` without rebuilding.
+It runs through Actions rather than Vercel's native Git integration so that
+`npm test` gates the deploy — the protocol layer here is a third implementation
+of the wire protocol, and a drifting build must not reach users.
+
+### One-time setup
+
+1. Create a Vercel project. When linking, set **Root Directory** to
+   `extras/web`, or run `vercel link` from that directory.
+2. Add three repository secrets (Settings → Secrets and variables → Actions):
+
+   | Secret | Where to find it |
+   |---|---|
+   | `VERCEL_TOKEN` | Vercel → Account Settings → Tokens |
+   | `VERCEL_ORG_ID` | `extras/web/.vercel/project.json` after `vercel link`, or Vercel team settings |
+   | `VERCEL_PROJECT_ID` | same `project.json`, or Vercel project settings |
+
+3. Turn **off** Vercel's native Git integration for the project (Settings → Git
+   → disconnect). Leaving it on means every push deploys twice — once ungated by
+   the tests.
+
+`vite.config.js` sets `base: './'`, so the same build also works from a project
+subpath, a custom domain or `file://` without rebuilding.
 
 Web-only changes should **not** bump `library.properties` or get a git tag —
 the Arduino Library Manager re-indexes on tags, and a release for a CSS change
