@@ -58,21 +58,47 @@ jobs:
       - name: Protocol tests
         run: npm test
 
+      # Forks and un-provisioned repos have no Vercel credentials. Skip the
+      # deploy with an explanatory notice rather than failing on a cryptic
+      # "--token is missing a value" from the CLI.
+      - name: Check Vercel credentials
+        id: creds
+        run: |
+          if [ -n "${{ secrets.VERCEL_TOKEN }}" ] \
+             && [ -n "${{ secrets.VERCEL_ORG_ID }}" ] \
+             && [ -n "${{ secrets.VERCEL_PROJECT_ID }}" ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Vercel secrets not configured — build verified, deploy skipped. See extras/web/README.md."
+            echo "### Deploy skipped" >> "$GITHUB_STEP_SUMMARY"
+            echo "Tests and build passed. Set VERCEL_TOKEN, VERCEL_ORG_ID and VERCEL_PROJECT_ID to enable deploys." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      # Without credentials, still prove the app compiles.
+      - name: Build (verify only)
+        if: steps.creds.outputs.configured != 'true'
+        run: npm run build
+
       - name: Install Vercel CLI
+        if: steps.creds.outputs.configured == 'true'
         run: npm install --global vercel@latest
 
       # Pulls project settings and environment variables (including
       # VITE_SUPABASE_*) from the Vercel project, so secrets live in one place.
       - name: Pull Vercel environment
+        if: steps.creds.outputs.configured == 'true'
         run: >-
           vercel pull --yes
           --environment=${{ github.event_name == 'push' && 'production' || 'preview' }}
           --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Build
+        if: steps.creds.outputs.configured == 'true'
         run: vercel build ${{ github.event_name == 'push' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }}
 
       - name: Deploy
+        if: steps.creds.outputs.configured == 'true'
         id: deploy
         run: |
           url=$(vercel deploy --prebuilt ${{ github.event_name == 'push' && '--prod' || '' }} --token=${{ secrets.VERCEL_TOKEN }})
@@ -82,7 +108,7 @@ jobs:
           echo "$url" >> "$GITHUB_STEP_SUMMARY"
 
       - name: Comment preview URL on PR
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && steps.creds.outputs.configured == 'true'
         uses: actions/github-script@v7
         with:
           script: |
