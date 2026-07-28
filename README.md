@@ -289,18 +289,19 @@ Use an ESP32 as the USB bridge instead of a CH340 adapter:
 - Windows, macOS, or Linux
 - USB-serial adapter (CH340, CP2102, or FTDI — recommended for auto COM port detection)
 
+### Download the prebuilt app (Windows)
+
+**[HLK-ZW-Tester-Program-v1.2.0.exe](https://github.com/GavinnnTann/HLK-ZW-Fingerprint-Sensor/releases/download/v1.2.0/HLK-ZW-Tester-Program-v1.2.0.exe)** — single file, no Python needed.
+
+> Use v1.2.0 or newer. The older v1.1.0 build predates the ZW30xx search fix, so
+> on a ZW3020 or ZW3021 it stores fingerprints but never matches them.
+
 ### Installation (running from source)
 
 ```bash
 pip install -r requirements.txt
 python HLK_ZW_Tester_Program.py
 ```
-
-> **On the prebuilt `.exe`:** the only packaged build attached to a release is
-> from **v1.1.0**, which predates the ZW30xx search fix in v1.2.0. If you have a
-> ZW3020 or ZW3021, run from source or use the
-> [Web Tester](https://hlk-fingerprint-web-tester.vercel.app) — both carry the
-> fix.
 
 ### Quick Start
 
