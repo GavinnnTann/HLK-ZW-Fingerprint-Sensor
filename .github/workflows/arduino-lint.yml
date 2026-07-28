@@ -1,6 +1,43 @@
 name: Arduino Lint
 
-on: [push, pull_request]
+# Validates the Arduino library against Library Manager's rules.
+#
+# This action only *checks* the library — it does not publish anything. The
+# Arduino Library Manager indexer polls this repository for new git tags on its
+# own schedule, so nothing here affects whether a release is picked up.
+#
+# Triggers are filtered to changes that can actually affect the library. The web
+# tester, images and documentation cannot, and previously produced a lint run
+# per push for no signal. A push touching both an ignored path and a library
+# file still runs, since paths-ignore only skips when every changed file matches.
+#
+# A denylist is used rather than an allowlist so new library-relevant files are
+# covered by default; forgetting to extend an allowlist would silently drop
+# coverage.
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+    paths-ignore:
+      - 'extras/web/**'
+      - 'extras/Images/**'
+      - 'extras/**.pdf'
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/workflows/deploy-vercel.yml'
+  pull_request:
+    paths-ignore:
+      - 'extras/web/**'
+      - 'extras/Images/**'
+      - 'extras/**.pdf'
+      - '**.md'
+      - 'LICENSE'
+      - '.gitignore'
+      - '.github/workflows/deploy-vercel.yml'
+  # Run on demand — useful to re-validate immediately before cutting a tag.
+  workflow_dispatch:
 
 jobs:
   lint:
@@ -9,5 +46,7 @@ jobs:
       - uses: actions/checkout@v7
       - uses: arduino/arduino-lint-action@v3
         with:
+          # "update" is the correct mode for a library already in the index;
+          # "submit" applies the stricter first-submission rules.
           library-manager: update
           compliance: strict
