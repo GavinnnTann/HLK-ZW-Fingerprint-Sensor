@@ -1,9 +1,10 @@
 # HLK-ZW Fingerprint Sensor Arduino Library
 
-[![PlatformIO Registry](https://badges.registry.platformio.org/packages/gavinnntann/library/HLK_fingerprint.svg)](https://registry.platformio.org/libraries/gavinnntann/HLK_fingerprint)
 [![Arduino Library Manager](https://www.ardu-badge.com/badge/HLK_fingerprint.svg)](https://www.ardu-badge.com/HLK_fingerprint)
-[![Download](https://img.shields.io/github/v/release/GavinnnTann/HLK-ZW-Fingerprint-Sensor?label=Download%20Tester&style=for-the-badge)](https://github.com/GavinnnTann/HLK-ZW-Fingerprint-Sensor/releases/download/v1.1.0/HLK-ZW.Tester.Program.exe)
-[![Web Tester](https://img.shields.io/badge/Web%20Tester-Open%20in%20browser-2563eb?style=for-the-badge)](https://hlk-fingerprint-web-tester.vercel.app)
+[![PlatformIO Registry](https://badges.registry.platformio.org/packages/gavinnntann/library/HLK_fingerprint.svg)](https://registry.platformio.org/libraries/gavinnntann/HLK_fingerprint)
+[![Latest release](https://img.shields.io/github/v/release/GavinnnTann/HLK-ZW-Fingerprint-Sensor?label=release)](https://github.com/GavinnnTann/HLK-ZW-Fingerprint-Sensor/releases/latest)
+[![Web Tester](https://img.shields.io/badge/web%20tester-open%20in%20browser-2563eb)](https://hlk-fingerprint-web-tester.vercel.app)
+[![License](https://img.shields.io/github/license/GavinnnTann/HLK-ZW-Fingerprint-Sensor?label=license)](LICENSE)
 
 Arduino library and no-code testers for the **HLK-ZW series capacitive fingerprint scanner** (EF-01 UART protocol) by Shenzhen Hi-Link Electronic Co., Ltd. Add fingerprint enrollment, 1:N matching, RGB LED control, and template management to any Arduino or ESP32 project in minutes. Also supports AS608, R307, and all EF-01-compatible fingerprint sensor modules.
 
@@ -24,7 +25,7 @@ Beyond matching the Python tester feature for feature, it adds a **capability pr
 
 | | Web Tester | Python Tester |
 |---|---|---|
-| Install required | None — open a link | `.exe` download or Python 3.10+ |
+| Install required | None — open a link | Python 3.10+ |
 | Browsers / platforms | Chrome, Edge, Opera, Arc | Windows, macOS, Linux |
 | Full protocol feature set | ✅ | ✅ |
 | Capability probe | ✅ | ❌ |
@@ -294,6 +295,12 @@ Use an ESP32 as the USB bridge instead of a CH340 adapter:
 pip install -r requirements.txt
 python HLK_ZW_Tester_Program.py
 ```
+
+> **On the prebuilt `.exe`:** the only packaged build attached to a release is
+> from **v1.1.0**, which predates the ZW30xx search fix in v1.2.0. If you have a
+> ZW3020 or ZW3021, run from source or use the
+> [Web Tester](https://hlk-fingerprint-web-tester.vercel.app) — both carry the
+> fix.
 
 ### Quick Start
 
