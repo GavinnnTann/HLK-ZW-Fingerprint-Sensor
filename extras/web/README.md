@@ -1,8 +1,9 @@
 # HLK-ZW Web Tester
 
 Browser-based tester for HLK-ZW series fingerprint sensors, talking to the
-module directly over the Web Serial API. Same feature set as the Python desktop
-tester, with nothing to install.
+module directly over the Web Serial API. Matches the Python desktop tester
+feature for feature, then goes beyond it — capability probe, on-chip random
+number reader, raw image capture — with nothing to install.
 
 ## Browser support
 
@@ -33,6 +34,17 @@ Everything the Python tester does:
   detection, raw 512-byte info-page hex dump
 - **Capability probe** — asks the module which optional opcodes it implements
   and shows the result (see below)
+- **Random number** — samples the module's on-chip hardware RNG
+  (`PS_GetRandomCode`), independent of the fingerprint sensor
+- **Raw image capture** — waits for a finger and streams the raw image out of
+  the module. The module reports neither its sensor resolution nor its pixel
+  packing; **confirmed on real HLK-ZW101 hardware**, it's 160×160 pixels at
+  1 bit/pixel — a preprocessed/binarized image, not the 4-bit grayscale
+  Hi-Link's demo software assumes. Other HLK-ZW variants are unconfirmed, so
+  this reshapes the same bytes live at any width/height/bit-depth you dial
+  in, with quick-pick starting points (the confirmed ZW101 default first), so
+  you can watch for a recognizable fingerprint pattern instead of noise.
+  Save the result as a PNG
 - **Enrollment** — two-scan with live progress, cancel, automatic reassignment
   away from an occupied slot
 - **Matching** — 1:N search with adjustable timeout and confidence score

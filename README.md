@@ -21,7 +21,7 @@ Wire the sensor to a USB-serial adapter, open the link, click **Connect**. Enrol
 
 **Chromium-only** — Chrome, Edge, Opera, Arc. Firefox and Safari do not implement Web Serial; use the [Python desktop tester](#python-desktop-tester) there.
 
-Beyond matching the Python tester feature for feature, it adds a **capability probe**: it asks your module which optional opcodes it actually implements and shows the result, so an unusual variant explains itself instead of surfacing as a confusing confirm code.
+Beyond matching the Python tester feature for feature, it adds a **capability probe** — it asks your module which optional opcodes it actually implements and shows the result, so an unusual variant explains itself instead of surfacing as a confusing confirm code — plus a way to sample the module's on-chip **random number generator** and capture the **raw fingerprint image** with a live width/height/bit-depth explorer, since the module reports neither its own sensor resolution nor its pixel packing.
 
 | | Web Tester | Python Tester |
 |---|---|---|
@@ -29,6 +29,7 @@ Beyond matching the Python tester feature for feature, it adds a **capability pr
 | Browsers / platforms | Chrome, Edge, Opera, Arc | Windows, macOS, Linux |
 | Full protocol feature set | ✅ | ✅ |
 | Capability probe | ✅ | ❌ |
+| Random number + raw image capture | ✅ | ❌ |
 | Problem reporting with logs | ✅ | ❌ |
 
 Source and setup: [extras/web/](extras/web/)
@@ -44,7 +45,7 @@ No good English-language Arduino library existed for the HLK-ZW fingerprint sens
 - No LED control support
 - No testing workflow without custom firmware
 
-This project fills that gap: a clean Arduino API installable from the Arduino IDE Library Manager, six ready-to-run example sketches, and two no-code testers — one in the browser, one native for Windows, macOS and Linux.
+This project fills that gap: a clean Arduino API installable from the Arduino IDE Library Manager, seven ready-to-run example sketches, and two no-code testers — one in the browser, one native for Windows, macOS and Linux.
 
 ---
 
@@ -212,7 +213,14 @@ bool ledOff();
 // System configuration
 bool readSysParam(uint16_t *capacity, uint8_t *secLevel, uint8_t *pktIdx, uint8_t *baudN);
 bool setSecurityLevel(uint8_t level);  // 1 (lowest) – 5 (highest)
+
+// Random number & raw image
+bool getRandomNumber(uint32_t &out);                                   // on-chip HW RNG, no finger needed
+uint16_t captureImage(uint8_t *buf, uint16_t maxLen);                  // waits for a finger, streams the raw image; trust the returned length
+FpImageDims fpImageDims(FpImageSize size);                             // width/height/byte-count presets — starting points, not confirmed values (see header)
 ```
+
+> **Raw image caveat:** the module reports neither its sensor resolution nor its pixel packing. Hi-Link's demo software assumes 2 px/byte at a handful of fixed sizes, and that assumption doesn't hold — **confirmed on real HLK-ZW101 hardware**, `PS_UpImage` reliably returns exactly 3200 bytes, which is `160×160 @ 1 bit/pixel` (the module's default preprocessed/binarized image), not the 4-bit grayscale the demo software assumes. The datasheet's own stated 80×64 sensor array doesn't match the wire format at any bit depth either. Use `captureImage()`'s returned length as ground truth, not `fpImageDims().bytes` — other HLK-ZW variants are unconfirmed, so the [web tester](https://hlk-fingerprint-web-tester.vercel.app)'s Raw image capture card reshapes the same bytes live at any width/height/bit-depth so you can find your module's real layout by eye.
 
 ### Example Sketches
 
@@ -224,6 +232,7 @@ bool setSecurityLevel(uint8_t level);  // 1 (lowest) – 5 (highest)
 | `storage_map` | ASCII grid of occupied and free template slots, auto-refreshes every 5 s |
 | `led_effects` | Cycles through all LED modes and colours |
 | `system_info` | Reads and prints module capacity, security level, and baud settings |
+| `random_and_image` | Samples the on-chip hardware RNG and dumps a raw fingerprint image as hex |
 | `MCU_Adapter` | Uses an ESP32 as a USB-CDC ↔ UART bridge for the Python desktop tester |
 
 All examples include an optional **CTRL pin** for low-power circuit designs — set `constexpr int CTRL = -1` (default, no pin) to a GPIO number to control sensor power.

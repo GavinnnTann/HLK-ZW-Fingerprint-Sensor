@@ -1,17 +1,69 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { Card, Pill, NumField, Select } from './ui.jsx';
 import StorageMap from './StorageMap.jsx';
 import { ccText, LED_COLORS, LED_FUNC, PACKET_SIZES } from '../protocol/constants.js';
+import { IMAGE_PRESETS, BIT_DEPTHS, expectedBytes, unpackImage } from '../protocol/image.js';
 
-export default function DeviceTab({ ops, device, mapStates, busy, connected }) {
+export default function DeviceTab({
+  ops, device, mapStates, busy, connected,
+  imgWidth, setImgWidth, imgHeight, setImgHeight, imgBpp, setImgBpp,
+}) {
   const [enrollId, setEnrollId] = useState(0);
   const [matchTimeout, setMatchTimeout] = useState(10);
   const [ledColor, setLedColor] = useState(0x01);
   const [ledCycles, setLedCycles] = useState(0);
+  const [imageTimeout, setImageTimeout] = useState(10);
+  const canvasRef = useRef(null);
 
   const disabled = !connected || busy;
   const maxId = Math.max(0, device.capacity - 1);
   const pkt = PACKET_SIZES.find((p) => p.idx === device.sysParams?.pktIdx);
+
+  const haveBytes = device.imageBytes?.length ?? 0;
+  const expectBytes = expectedBytes(imgWidth, imgHeight, imgBpp);
+  const sizeMatches = haveBytes > 0 && haveBytes === expectBytes;
+
+  // Reshape the raw capture at whatever width/height/bit-depth is currently
+  // selected — recomputes instantly as the user tweaks the controls, no
+  // re-capture needed. See protocol/image.js for why this is interactive
+  // instead of a fixed size list.
+  const pixels = useMemo(() => {
+    if (!device.imageBytes) return null;
+    return unpackImage(device.imageBytes, imgWidth, imgHeight, imgBpp);
+  }, [device.imageBytes, imgWidth, imgHeight, imgBpp]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.width = imgWidth;
+    canvas.height = imgHeight;
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    if (!pixels) return;
+    const frame = ctx.createImageData(imgWidth, imgHeight);
+    for (let i = 0; i < pixels.length; i++) {
+      const v = pixels[i];
+      frame.data[i * 4] = v;
+      frame.data[i * 4 + 1] = v;
+      frame.data[i * 4 + 2] = v;
+      frame.data[i * 4 + 3] = 255;
+    }
+    ctx.putImageData(frame, 0, 0);
+  }, [pixels, imgWidth, imgHeight]);
+
+  function saveImagePng() {
+    const canvas = canvasRef.current;
+    if (!canvas || !pixels) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fingerprint_image_${imgWidth}x${imgHeight}_${imgBpp}bpp.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
+  }
 
   return (
     <div className="grid cols-2">
@@ -206,6 +258,84 @@ export default function DeviceTab({ ops, device, mapStates, busy, connected }) {
                 : 'This module reports no LED hardware at all (normal on ZW302x).'}
           </p>
         )}
+      </Card>
+
+      {/* ── Random number ───────────────────────────────────────────────── */}
+      <Card title="Random number" opcode="0x14">
+        <div className="row">
+          <button className="primary" disabled={disabled} onClick={ops.getRandom}>
+            Sample random number
+          </button>
+          <span className="rng-value">{device.randomHex ?? '—'}</span>
+          {device.randomValue != null && (
+            <span className="hint">({device.randomValue})</span>
+          )}
+        </div>
+        <p className="hint" style={{ marginTop: 10 }}>
+          Reads the module's on-chip hardware RNG (PS_GetRandomCode). Independent
+          of the fingerprint sensor — no scan required, safe to call any time.
+        </p>
+      </Card>
+
+      {/* ── Raw image capture ───────────────────────────────────────────── */}
+      <Card title="Raw image capture" opcode="0x01 / 0x0A">
+        <div className="row">
+          <button className="primary" disabled={disabled} onClick={() => ops.captureImage(imageTimeout)}>
+            Capture image
+          </button>
+          <NumField
+            label="Timeout (s)"
+            value={imageTimeout}
+            onChange={setImageTimeout}
+            min={1}
+            max={60}
+            disabled={disabled}
+          />
+          <button className="sm" disabled={!pixels} onClick={saveImagePng}>
+            Save PNG
+          </button>
+        </div>
+        <p className="hint" style={{ marginTop: 10 }}>
+          Confirmed on a physical HLK-ZW101: 160 × 160 @ 1-bit (the first
+          preset below) — the module sends its default preprocessed/binarized
+          image, not the grayscale format Hi-Link's demo software assumes.
+          Other HLK-ZW variants are unconfirmed; place your finger, click
+          Capture, then tweak width / height / bit depth until the preview
+          looks like a fingerprint instead of noise.
+        </p>
+
+        <div className="row" style={{ marginTop: 12 }}>
+          <NumField label="Width" value={imgWidth} onChange={setImgWidth} min={1} max={512} />
+          <NumField label="Height" value={imgHeight} onChange={setImgHeight} min={1} max={512} />
+          <Select
+            label="Bit depth"
+            value={imgBpp}
+            onChange={(v) => setImgBpp(Number(v))}
+            options={BIT_DEPTHS.map((b) => ({ value: b, label: `${b}-bit${b === 1 ? ' (binary)' : ''}` }))}
+          />
+        </div>
+        <div className="row" style={{ marginTop: 8 }}>
+          {IMAGE_PRESETS.map((p) => (
+            <button
+              key={p.label}
+              className="sm ghost"
+              onClick={() => { setImgWidth(p.width); setImgHeight(p.height); setImgBpp(p.bitsPerPixel); }}
+            >
+              {p.label}
+            </button>
+          ))}
+        </div>
+
+        <div className="row" style={{ marginTop: 10 }}>
+          <Pill tone={haveBytes === 0 ? '' : sizeMatches ? 'ok' : 'warn'}>
+            {haveBytes} bytes received · {expectBytes} expected at {imgWidth}×{imgHeight}@{imgBpp}bpp
+          </Pill>
+        </div>
+
+        <div className="image-preview" style={{ marginTop: 10 }}>
+          <canvas ref={canvasRef} />
+        </div>
+        <p style={{ marginTop: 8, marginBottom: 0 }}>{device.imageStatus || 'Ready'}</p>
       </Card>
     </div>
   );

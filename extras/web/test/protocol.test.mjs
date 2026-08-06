@@ -39,6 +39,30 @@ test('parseResponse decodes an OK ack', () => {
   assert.equal(parseResponse(rx).cc, 0x00);
 });
 
+test('buildPacket produces a well-formed GetRandomCode (0x14) frame', () => {
+  assert.equal(hex(buildPacket(CMD.GETRANDOM)), 'EF 01 FF FF FF FF 01 00 03 14 00 18');
+});
+
+test('buildPacket produces a well-formed UpImage (0x0A) frame', () => {
+  assert.equal(hex(buildPacket(CMD.UPIMAGE)), 'EF 01 FF FF FF FF 01 00 03 0A 00 0E');
+});
+
+test('parseResponse decodes a GetRandomCode 4-byte payload', () => {
+  const body = [0x00, 0xde, 0xad, 0xbe, 0xef];
+  const length = body.length + 2;
+  let cs = 0x07 + (length >> 8) + (length & 0xff);
+  for (const b of body) cs += b;
+  cs &= 0xffff;
+  const rx = new Uint8Array([
+    0xef, 0x01, 0xff, 0xff, 0xff, 0xff, 0x07,
+    (length >> 8) & 0xff, length & 0xff,
+    ...body, (cs >> 8) & 0xff, cs & 0xff,
+  ]);
+  const { cc, data } = parseResponse(rx);
+  assert.equal(cc, 0x00);
+  assert.deepEqual(Array.from(data), [0xde, 0xad, 0xbe, 0xef]);
+});
+
 test('parseResponse rejects a corrupted checksum', () => {
   const rx = new Uint8Array([0xef, 0x01, 0xff, 0xff, 0xff, 0xff, 0x07, 0x00, 0x03, 0x00, 0xff, 0xff]);
   assert.throws(() => parseResponse(rx), /checksum mismatch/);
@@ -147,4 +171,62 @@ test('a comm error does not latch HiSpeedSearch off', async () => {
   d.t = { isOpen: true, flushInput() {}, async write() {}, async readExactly() { return null; } };
   await d.search();
   assert.equal(d.hiSpeedSearch, true, 'timeout says nothing about opcode support');
+});
+
+// ── Random number ───────────────────────────────────────────────────────────
+
+test('driver.getRandomNumber reassembles the 4-byte payload as an unsigned u32', async () => {
+  const body = [0x00, 0xde, 0xad, 0xbe, 0xef];
+  const transport = {
+    isOpen: true,
+    flushInput() {},
+    _frame: null,
+    async write() {
+      const length = body.length + 2;
+      let cs = 0x07 + (length >> 8) + (length & 0xff);
+      for (const b of body) cs += b;
+      cs &= 0xffff;
+      this._frame = [
+        0xef, 0x01, 0xff, 0xff, 0xff, 0xff, 0x07,
+        (length >> 8) & 0xff, length & 0xff,
+        ...body, (cs >> 8) & 0xff, cs & 0xff,
+      ];
+    },
+    async readExactly(n) {
+      const out = new Uint8Array(this._frame.slice(0, n));
+      this._frame = this._frame.slice(n);
+      return out;
+    },
+  };
+  const d = driverWith(transport);
+  const v = await d.getRandomNumber();
+  assert.equal(v, 0xdeadbeef);
+  assert.equal(v >= 0, true, 'result is unsigned even for values ≥ 0x80000000');
+});
+
+test('driver.getRandomNumber returns null on a non-OK confirm code', async () => {
+  const transport = {
+    isOpen: true,
+    flushInput() {},
+    _frame: null,
+    async write() {
+      const body = [0x19]; // random number generation failed
+      const length = body.length + 2;
+      let cs = 0x07 + (length >> 8) + (length & 0xff);
+      for (const b of body) cs += b;
+      cs &= 0xffff;
+      this._frame = [
+        0xef, 0x01, 0xff, 0xff, 0xff, 0xff, 0x07,
+        (length >> 8) & 0xff, length & 0xff,
+        ...body, (cs >> 8) & 0xff, cs & 0xff,
+      ];
+    },
+    async readExactly(n) {
+      const out = new Uint8Array(this._frame.slice(0, n));
+      this._frame = this._frame.slice(n);
+      return out;
+    },
+  };
+  const d = driverWith(transport);
+  assert.equal(await d.getRandomNumber(), null);
 });
