@@ -189,34 +189,45 @@ export class FingerprintDriver {
   }
 
   // Receive a PID 0x02/0x08 data stream (follows an UpChar/ReadINFpage ACK).
+  //
+  // Logs *why* the stream stopped — a clean PID 0x08 end packet vs. a
+  // timeout/checksum abort look identical as a returned byte count, but mean
+  // very different things when reverse-engineering an unfamiliar payload
+  // (e.g. PS_UpImage, whose length depends on a sensor resolution and pixel
+  // packing the module never actually reports).
   async recvStream(timeoutMs = 5000, maxBytes = 2048) {
     const deadline = Date.now() + timeoutMs;
     let payload = [];
+    let packets = 0;
     for (;;) {
       const head = await this.t.readExactly(9, deadline);
-      if (!head) { this.log('TIMEOUT reading data-stream header'); break; }
+      if (!head) { this.log(`TIMEOUT reading data-stream header (packet ${packets}, ${payload.length}B so far)`); break; }
       if (head[0] !== 0xef || head[1] !== 0x01) {
-        this.log(`Bad header in data stream: ${hex(head.slice(0, 2))}`); break;
+        this.log(`Bad header in data stream: ${hex(head.slice(0, 2))} (packet ${packets}, ${payload.length}B so far)`); break;
       }
       const pid = head[6];
       const length = (head[7] << 8) | head[8];
       if (length < 2) { this.log(`Invalid packet length: ${length}`); break; }
 
       const rest = await this.t.readExactly(length, deadline);
-      if (!rest) { this.log('TIMEOUT reading data-stream body'); break; }
+      if (!rest) { this.log(`TIMEOUT reading data-stream body (packet ${packets}, ${payload.length}B so far)`); break; }
 
       const chunk = rest.slice(0, length - 2);
       const csRecv = (rest[length - 2] << 8) | rest[length - 1];
       let csCalc = pid + head[7] + head[8];
       for (const b of chunk) csCalc += b;
       csCalc &= 0xffff;
-      if (csRecv !== csCalc) { this.log('Checksum mismatch in data stream'); break; }
+      if (csRecv !== csCalc) { this.log(`Checksum mismatch in data stream (packet ${packets}, ${payload.length}B so far)`); break; }
 
       payload = payload.concat(Array.from(chunk));
+      packets++;
       if (payload.length > maxBytes) {
         this.log(`Data stream exceeded ${maxBytes} byte limit`); break;
       }
-      if (pid === PID_END) break;
+      if (pid === PID_END) {
+        this.log(`Data stream complete: ${packets} packet(s), ${payload.length} bytes`);
+        break;
+      }
     }
     return new Uint8Array(payload);
   }
@@ -259,12 +270,37 @@ export class FingerprintDriver {
     return cc;
   }
 
+  // PS_GetRandomCode (0x14): 4-byte value from the module's on-chip hardware
+  // RNG. Independent of the fingerprint sensor — no scan required. Also used
+  // internally by the module for key generation and challenge nonces in the
+  // security instruction set; this just exposes it directly.
+  async getRandomNumber() {
+    const { cc, data } = await this.sendRecv(CMD.GETRANDOM);
+    if (cc !== 0x00 || !data || data.length < 4) return null;
+    return ((data[0] << 24) | (data[1] << 16) | (data[2] << 8) | data[3]) >>> 0;
+  }
+
   // ACK and data stream are one exchange — hold the lock across both.
   readInfoPage() {
     return this._locked(async () => {
       const { cc } = await this._sendRecv(CMD.READINFPAGE);
       if (cc !== 0x00) return null;
       return await this.recvStream(5000, 512);
+    });
+  }
+
+  // PS_UpImage (0x0A): stream the raw image out of the module's current
+  // image buffer. Call getImage() (and confirm cc === 0x00) first — same
+  // ACK+stream shape as UpChar/ReadINFpage. The module never reports its own
+  // resolution or pixel packing (see protocol/image.js), so maxBytes is just
+  // a generous upper bound, not a size assertion.
+  uploadImage(maxBytes = 40000) {
+    return this._locked(async () => {
+      const { cc } = await this._sendRecv(CMD.UPIMAGE);
+      if (cc !== 0x00) return { error: `UpImage rejected: ${ccText(cc)}` };
+      const data = await this.recvStream(8000, maxBytes);
+      if (!data.length) return { error: 'No image data received' };
+      return { data };
     });
   }
 

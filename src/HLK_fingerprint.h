@@ -6,6 +6,38 @@
 enum class FpEnrollStep : uint8_t { PLACE_FIRST, LIFT_FINGER, PLACE_SECOND, DONE, FAILED };
 enum class FpResult     : uint8_t { OK, NO_MATCH, ERROR };
 
+// ─── Raw image size presets (module doesn't report its own resolution) ──────
+// These four sizes match the "image size" dropdown in Hi-Link's Finger_Demo
+// software, which assumes 2 px/byte (4-bit grayscale) — so .bytes below is
+// that assumption's estimate, NOT a confirmed value.
+//
+// CONFIRMED on real HLK-ZW101 hardware (examples/random_and_image):
+// PS_UpImage reliably returns exactly 3200 bytes — W160x160 at 1 bit/pixel
+// (an 8-fold pack, not the 2-fold this struct assumes), because the module
+// sends its default preprocessed/binarized image (ImageFormat register,
+// system parameter #12 / WriteReg register 2), not the "original" grayscale
+// image the demo software's size picker was built around. The HLK-ZW101
+// datasheet's own stated sensor array (80×64, extras/HLK-ZW101 Datasheet.pdf
+// §2.1) doesn't match the wire format at any bit depth — it's presumably
+// describing the sensor die, not what PS_UpImage streams.
+//
+// Bottom line: trust the byte count captureImage() actually returns over
+// dims.bytes here. On a ZW101, expect 3200 bytes = 160×160 @ 1 bit/pixel
+// (8 pixels/byte, MSB first). Other HLK-ZW variants are unconfirmed — for
+// those, try other width/height/bit-depth combinations (see extras/web's
+// Raw image capture card, which does this interactively) until the picture
+// looks like a fingerprint instead of noise.
+enum class FpImageSize : uint8_t { W88x112, W96x122, W160x160, W256x288 };
+
+struct FpImageDims {
+    uint16_t width;
+    uint16_t height;
+    uint16_t bytes;   // width*height/2 — UNCONFIRMED estimate, see note above
+};
+
+// Pixel dimensions + estimated PS_UpImage byte count for a size preset.
+FpImageDims fpImageDims(FpImageSize size);
+
 // ─── LED color wire values for AURALEDCONFIG (0x3C) ──────────────────────────
 // These are the actual bytes sent to the module, NOT UI label numbers.
 #define FP_LED_BLUE    0x01
@@ -122,6 +154,22 @@ public:
                       char *swVersion    = nullptr,
                       char *manufacturer = nullptr,
                       char *sensorName   = nullptr);
+
+    // ── Random number & raw image ──────────────────────────────────────────────
+
+    // Sample the module's on-chip hardware RNG (PS_GetRandomCode 0x14).
+    // Independent of the fingerprint sensor — does not require or consume a
+    // finger scan, safe to call at any time. Returns false on comm error.
+    bool getRandomNumber(uint32_t &out);
+
+    // Blocking raw image capture: waits up to timeoutMs for a finger
+    // (PS_GetImage 0x01), then streams the image out of the buffer
+    // (PS_UpImage 0x0A). buf should be sized generously — see the
+    // FpImageDims note above, the true byte count is not reliably
+    // predictable from width/height alone. Returns bytes received (0 =
+    // timeout/error; check lastCC) — use that actual count, not
+    // fpImageDims().bytes, when deciding how to interpret the pixels.
+    uint16_t captureImage(uint8_t *buf, uint16_t maxLen, uint32_t timeoutMs = 10000);
 
     // ── System settings (all persist to module flash) ─────────────────────────
 

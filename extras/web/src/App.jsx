@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FingerprintDriver } from './protocol/driver.js';
 import { ccText, VARIANT_MAP } from './protocol/constants.js';
+import { IMAGE_PRESETS, suggestLayouts } from './protocol/image.js';
 import { hex } from './protocol/packet.js';
 import ConnectionBar from './components/ConnectionBar.jsx';
 import DeviceTab from './components/DeviceTab.jsx';
@@ -35,7 +36,14 @@ export default function App() {
     statusText: 'Disconnected', statusTone: '',
     capabilities: null, enrollStatus: '', enrollProgress: 0,
     matchText: null, matchTone: 'idle', matchDetail: '', ledMode: null,
+    randomValue: null, randomHex: null, imageBytes: null, imageStatus: '',
   });
+  // Raw-image reshape controls, lifted here (not local to DeviceTab) so the
+  // capture op can auto-apply a detected layout after a successful upload.
+  const firstPreset = IMAGE_PRESETS[0];
+  const [imgWidth, setImgWidth] = useState(firstPreset.width);
+  const [imgHeight, setImgHeight] = useState(firstPreset.height);
+  const [imgBpp, setImgBpp] = useState(firstPreset.bitsPerPixel);
 
   const cancelRef = useRef(false);
   const patch = useCallback((p) => setDevice((d) => ({ ...d, ...p })), []);
@@ -125,6 +133,7 @@ export default function App() {
       statusText: 'Disconnected', statusTone: '', sysParams: null, count: null,
       variant: '', capabilities: null, matchText: null, matchTone: 'idle',
       matchDetail: '', ledMode: null, enrollStatus: '', enrollProgress: 0,
+      randomValue: null, randomHex: null, imageBytes: null, imageStatus: '',
     });
     log('Disconnected.');
   }
@@ -201,6 +210,49 @@ export default function App() {
           .join('');
         log(`  ${i.toString(16).padStart(4, '0').toUpperCase()}  ${lo}  ${hi}   ${asc}`);
       }
+    }),
+
+    // ── Random number / raw image ─────────────────────────────────────────
+    getRandom: () => run(async () => {
+      const v = await driver.getRandomNumber();
+      if (v === null) {
+        log('Random number generation failed');
+        patch({ randomValue: null, randomHex: null });
+        return;
+      }
+      const hex = `0x${v.toString(16).padStart(8, '0').toUpperCase()}`;
+      patch({ randomValue: v, randomHex: hex });
+      log(`Random number (PS_GetRandomCode): ${hex} (${v})`);
+    }),
+
+    // Captures raw bytes only — DeviceTab reshapes them live at whatever
+    // width/height/bit-depth is currently selected, since the module never
+    // reports its own resolution or pixel packing (see protocol/image.js).
+    captureImage: (timeoutSec) => run(async () => {
+      patch({ imageStatus: 'Waiting for finger…', imageBytes: null });
+      const deadline = Date.now() + timeoutSec * 1000;
+
+      for (;;) {
+        if (Date.now() > deadline) { patch({ imageStatus: 'Timeout — no finger detected' }); return; }
+        const cc = await driver.getImage();
+        if (cc === 0x00) break;
+        if (cc === 0x02) continue;
+        patch({ imageStatus: `Image error: ${ccText(cc)}` }); return;
+      }
+
+      patch({ imageStatus: 'Uploading image…' });
+      const { data, error } = await driver.uploadImage();
+      if (error) { patch({ imageStatus: error }); log(`[Image] ${error}`); return; }
+
+      const matches = suggestLayouts(data.length);
+      if (matches.length) {
+        const m = matches[0];
+        setImgWidth(m.width); setImgHeight(m.height); setImgBpp(m.bitsPerPixel);
+        log(`[Image] ${data.length} bytes — exact match: ${matches.map((x) => x.label).join(', ')}`);
+      } else {
+        log(`[Image] ${data.length} bytes received — no exact preset match; adjust width/height/bit-depth and watch the preview for a fingerprint pattern`);
+      }
+      patch({ imageBytes: data, imageStatus: `Captured — ${data.length} bytes` });
     }),
 
     probeCapabilities: () => run(async () => {
@@ -491,7 +543,12 @@ export default function App() {
       </nav>
 
       {tab === 'device' && (
-        <DeviceTab ops={ops} device={device} mapStates={mapStates} busy={busy} connected={connected} />
+        <DeviceTab
+          ops={ops} device={device} mapStates={mapStates} busy={busy} connected={connected}
+          imgWidth={imgWidth} setImgWidth={setImgWidth}
+          imgHeight={imgHeight} setImgHeight={setImgHeight}
+          imgBpp={imgBpp} setImgBpp={setImgBpp}
+        />
       )}
       {tab === 'manage' && (
         <ManageTab ops={ops} device={device} busy={busy} connected={connected} />

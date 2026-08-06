@@ -17,12 +17,14 @@
 #define INS_LOAD           0x07
 #define INS_UPCHAR         0x08
 #define INS_DOWNCHAR       0x09
+#define INS_UPIMAGE        0x0A
 #define INS_DELETE         0x0C
 #define INS_EMPTY          0x0D
 #define INS_WRITE_REG      0x0E
 #define INS_READSYSPARAM   0x0F
 #define INS_SETPASSWORD    0x12
 #define INS_VERIFYPASSWORD 0x13
+#define INS_GETRANDOM      0x14
 #define INS_HISPEEDSEARCH  0x1B
 #define INS_TEMPLATECOUNT  0x1D
 #define INS_READ_INDEX     0x1F
@@ -30,6 +32,18 @@
 #define INS_READINFPAGE    0x16
 #define INS_LEDON          0x50
 #define INS_LEDOFF         0x51
+
+// ─── Image size presets ────────────────────────────────────────────────────────
+
+FpImageDims fpImageDims(FpImageSize size) {
+    switch (size) {
+        case FpImageSize::W88x112:  return { 88,  112, 88  * 112  / 2 };
+        case FpImageSize::W96x122:  return { 96,  122, 96  * 122  / 2 };
+        case FpImageSize::W160x160: return { 160, 160, 160 * 160  / 2 };
+        case FpImageSize::W256x288: return { 256, 288, 256 * 288  / 2 };
+    }
+    return { 0, 0, 0 };
+}
 
 // ─── Packet builder / parser ──────────────────────────────────────────────────
 
@@ -586,6 +600,59 @@ bool FingerprintModule::readInfoPage(char *productSN, char *swVersion,
         }
     }
     return false;
+}
+
+// ─── Random number & raw image ────────────────────────────────────────────────
+
+// PS_GetRandomCode (0x14): 4-byte value from the module's on-chip hardware
+// RNG. Also used internally by the module for key generation and challenge
+// nonces in the security instruction set — this just exposes it directly.
+bool FingerprintModule::getRandomNumber(uint32_t &out) {
+    uint8_t dout[4]; uint8_t dlen = 0;
+    if (_sendRecv(INS_GETRANDOM, nullptr, 0, dout, dlen) != 0x00 || dlen < 4) return false;
+    out = ((uint32_t)dout[0] << 24) | ((uint32_t)dout[1] << 16) |
+          ((uint32_t)dout[2] << 8)  |  (uint32_t)dout[3];
+    return true;
+}
+
+// PS_GetImage (0x01) + PS_UpImage (0x0A): wait for a finger, then stream the
+// raw image out of the module's image buffer. Same ACK+stream shape as
+// UpChar — handled manually here since _sendRecv() only covers single-ACK
+// commands. See the FpImageSize note in the header for why the returned byte
+// count should be treated as ground truth over any assumed width/height.
+uint16_t FingerprintModule::captureImage(uint8_t *buf, uint16_t maxLen, uint32_t timeoutMs) {
+    uint32_t deadline = millis() + timeoutMs;
+
+    while (millis() < deadline) {
+        if (getImage()) break;
+        if (lastCC != 0x02) return 0;   // real error, not just "no finger yet"
+        delay(20);
+    }
+    if (millis() >= deadline) { lastCC = 0x02; return 0; }
+
+    uint8_t txBuf[16];
+    uint16_t txLen = _buildPacket(INS_UPIMAGE, nullptr, 0, txBuf);
+
+    while (_serial.available()) _serial.read();
+    _serial.write(txBuf, txLen);
+    _serial.flush();
+
+    uint8_t rxBuf[32];
+    uint16_t total = _readPacket(rxBuf, sizeof(rxBuf), 3000);
+    if (total == 0) { lastCC = 0xFF; return 0; }
+
+    uint8_t  pid    = rxBuf[6];
+    uint16_t length = ((uint16_t)rxBuf[7] << 8) | rxBuf[8];
+    if (length < 2) { lastCC = 0xFE; return 0; }
+    uint16_t blen   = length - 2;
+    const uint8_t *body = rxBuf + 9;
+    uint16_t cs_recv = ((uint16_t)rxBuf[9 + blen] << 8) | rxBuf[9 + blen + 1];
+    uint16_t cs_calc = _checksum(pid, rxBuf[7], rxBuf[8], body, blen);
+    if (cs_calc != cs_recv || blen == 0) { lastCC = 0xFE; return 0; }
+    lastCC = body[0];
+    if (lastCC != 0x00) return 0;
+
+    return _recvStream(buf, maxLen, 8000);
 }
 
 // ─── System settings ──────────────────────────────────────────────────────────

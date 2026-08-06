@@ -213,6 +213,22 @@ label.inline { display: inline-flex; align-items: center; gap: 6px; }
 .meter { height: 6px; border-radius: 999px; background: var(--surface-2); overflow: hidden; }
 .meter > i { display: block; height: 100%; background: var(--accent); transition: width 0.25s; }
 
+/* ── Random number ───────────────────────────────────────────────────────── */
+
+.rng-value { font: 600 15px var(--mono); letter-spacing: 0.02em; }
+
+/* ── Image preview ───────────────────────────────────────────────────────── */
+
+.image-preview {
+  display: flex; justify-content: center; align-items: center;
+  background: var(--surface-2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px; min-height: 140px;
+}
+.image-preview canvas {
+  image-rendering: pixelated; max-width: 100%; max-height: 260px;
+  border: 1px solid var(--border); background: #000;
+}
+
 /* ── Log ─────────────────────────────────────────────────────────────────── */
 
 .log {
