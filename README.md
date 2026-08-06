@@ -6,7 +6,7 @@
 [![Web Tester](https://img.shields.io/badge/web%20tester-open%20in%20browser-2563eb)](https://hlk-fingerprint-web-tester.vercel.app)
 [![License](https://img.shields.io/github/license/GavinnnTann/HLK-ZW-Fingerprint-Sensor?label=license)](LICENSE)
 
-Arduino library and no-code testers for the **HLK-ZW series capacitive fingerprint scanner** (EF-01 UART protocol) by Shenzhen Hi-Link Electronic Co., Ltd. Add fingerprint enrollment, 1:N matching, RGB LED control, and template management to any Arduino or ESP32 project in minutes. Also supports AS608, R307, and all EF-01-compatible fingerprint sensor modules.
+Arduino library and no-code testers for the **HLK-ZW series capacitive fingerprint scanner** (EF-01 UART protocol) by Shenzhen Hi-Link Electronic Co., Ltd. Add fingerprint enrollment, 1:N matching, RGB LED control, template management, on-chip RNG sampling, and raw image capture to any Arduino or ESP32 project in minutes. Also supports AS608, R307, and all EF-01-compatible fingerprint sensor modules.
 
 ---
 
@@ -343,6 +343,7 @@ python HLK_ZW_Tester_Program.py
 | Template storage map viewer | ❌ | ✅ |
 | Auto slot assignment on enroll | ❌ | ✅ |
 | TOUCH_OUT interrupt / low-power support | ❌ | ✅ |
+| On-chip RNG / raw image capture | ❌ | ✅ |
 | Arduino Library Manager | ✅ | ✅ |
 
 ---
