@@ -115,7 +115,7 @@ jobs:
             const url = '${{ steps.deploy.outputs.url }}';
             const marker = '<!-- vercel-preview -->';
             const body = `${marker}\n**Web tester preview:** ${url}\n\n` +
-              `Web Serial needs a Chromium browser (Chrome, Edge, Opera, Arc).`;
+              `Web Serial needs a desktop Chrome, Edge, Opera or Arc (89+), or Firefox 151+.`;
             const { owner, repo } = context.repo;
             const issue_number = context.issue.number;
             const comments = await github.rest.issues.listComments({ owner, repo, issue_number });

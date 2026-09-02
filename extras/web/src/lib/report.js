@@ -8,6 +8,8 @@
 // dialog still works — it falls back to clipboard/download plus a prefilled
 // GitHub issue, so a fork with no Supabase project is fully usable.
 
+import { APP_VERSION, BUILD_SHA, BUILD_DATE } from './build.js';
+
 const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL ?? '';
 const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY ?? '';
 const TABLE = 'reports';
@@ -61,7 +63,9 @@ export function buildDiagnostics({ device, logText }) {
     hispeed_search: device.hiSpeedSearch ?? null,
     capabilities: device.capabilities ?? null,
     user_agent: navigator.userAgent,
-    app_version: __APP_VERSION__,
+    app_version: APP_VERSION,
+    build_sha: BUILD_SHA,
+    build_date: BUILD_DATE,
     submitted_at: new Date().toISOString(),
     log_lines: logText ? logText.split('\n').length : 0,
   };

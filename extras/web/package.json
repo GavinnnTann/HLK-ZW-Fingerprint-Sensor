@@ -1,14 +1,14 @@
 {
   "name": "hlk-zw-web-tester",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.4.0",
   "type": "module",
   "description": "Browser-based Web Serial tester for HLK-ZW series fingerprint sensors",
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test test/protocol.test.mjs test/image.test.mjs"
+    "test": "node --test test/protocol.test.mjs test/image.test.mjs test/changelog.test.mjs"
   },
   "dependencies": {
     "react": "^18.3.1",

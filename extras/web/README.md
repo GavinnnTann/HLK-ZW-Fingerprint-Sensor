@@ -83,6 +83,8 @@ Everything the Python tester does:
   simple on/off, and it reports which path the module actually took
 - **Settings** — security level, baud rate, packet size, change password
 - **Log** — every frame in and out, with copy, download and problem reporting
+- **What's new** — release notes in the app, with the running version and
+  commit (see below)
 
 ### Capability probe
 
@@ -94,6 +96,38 @@ days of back-and-forth in issue #1.
 
 The probe sends each optional command and reports what came back, so an unusual
 module is a screenshot rather than a forensic exercise.
+
+## Versioning and release notes
+
+The header shows the running version (`v1.4.0`); hovering it gives the full
+build id, and clicking it opens the **What's new** tab. That tab also prints the
+commit and build date, and every problem report attaches all three
+(`app_version`, `build_sha`, `build_date`) — the commit is what actually
+identifies a build, since the tester redeploys on every push to `main` and a
+page is often several commits ahead of the last tag.
+
+| Where | Source |
+|---|---|
+| Version | `package.json`, injected as `__APP_VERSION__` |
+| Commit | `VERCEL_GIT_COMMIT_SHA` / `GITHUB_SHA` in CI, else `git rev-parse`, else `dev` |
+| Build date | Build time, UTC day |
+| Release notes | [`src/changelog.js`](src/changelog.js) |
+
+The version tracks the repository's release line — the same number as
+`library.properties` and the GitHub releases — so the app and the release notes
+on GitHub always mean the same thing. (It was pinned at `1.0.0` until v1.4.0,
+which made `app_version` useless in problem reports.)
+
+Release notes are hand-maintained data rather than a fetch of the GitHub
+releases API, so the tab works on a bench machine with no network. **When you
+bump `package.json`, add the matching entry to `src/changelog.js` in the same
+commit** — `test/changelog.test.mjs` fails the build otherwise, and it also
+checks ordering, dates and change kinds. Use `date: null` for a version that has
+not been tagged yet; the tab renders it as *unreleased*.
+
+A **What's new** dot appears on the tab when the running version differs from the
+one last read (`seenVersion` in `localStorage`). A first-time visitor is recorded
+silently, so the dot only ever means "new since your last visit".
 
 ## Protocol layer
 
