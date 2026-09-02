@@ -19,14 +19,14 @@ Wire the sensor to a USB-serial adapter, open the link, click **Connect**. Enrol
 <img src="extras/Images/Web%20Tester%20Light.png" width="450" alt="HLK-ZW web tester in light mode showing device info, capability probe, enrollment and storage map">
 <img src="extras/Images/Web%20Tester%20Dark.png" width="450" alt="HLK-ZW web tester in dark mode">
 
-**Chromium-only** — Chrome, Edge, Opera, Arc. Firefox and Safari do not implement Web Serial; use the [Python desktop tester](#python-desktop-tester) there.
+**Desktop Chrome, Edge, Opera, Arc (89+) or Firefox 151+.** Safari and the mobile browsers do not implement Web Serial; use the [Python desktop tester](#python-desktop-tester) there. See [extras/web/](extras/web/#browser-support) for the Firefox specifics.
 
 Beyond matching the Python tester feature for feature, it adds a **capability probe** — it asks your module which optional opcodes it actually implements and shows the result, so an unusual variant explains itself instead of surfacing as a confusing confirm code — plus a way to sample the module's on-chip **random number generator** and capture the **raw fingerprint image** with a live width/height/bit-depth explorer, since the module reports neither its own sensor resolution nor its pixel packing.
 
 | | Web Tester | Python Tester |
 |---|---|---|
 | Install required | None — open a link | Python 3.10+ |
-| Browsers / platforms | Chrome, Edge, Opera, Arc | Windows, macOS, Linux |
+| Browsers / platforms | Chrome, Edge, Opera, Arc, Firefox 151+ | Windows, macOS, Linux |
 | Full protocol feature set | ✅ | ✅ |
 | Capability probe | ✅ | ❌ |
 | Random number + raw image capture | ✅ | ❌ |
@@ -106,7 +106,7 @@ Two independent workflows depending on your use case:
 +-----------+ +-----------------+
 | Web       | | Python GUI      |
 | Tester    | | Tester          |
-| (Chromium)| | (Win/Mac/Linux) |
+| (browser) | | (Win/Mac/Linux) |
 +-----------+ +-----------------+
 ```
 
@@ -249,7 +249,7 @@ All examples include an optional **CTRL pin** for low-power circuit designs — 
 
 ## Python Desktop Tester
 
-A **no-code testing environment** for HLK-ZW fingerprint sensors, for Firefox and Safari users or anyone who prefers a native app. Evaluate enrollment, 1:N matching, LED effects, and full template management over USB — no firmware required. Compatible with the CH340 adapter or any ESP32 running the `MCU_Adapter` sketch.
+A **no-code testing environment** for HLK-ZW fingerprint sensors, for Safari users, mobile browsers, or anyone who prefers a native app. Evaluate enrollment, 1:N matching, LED effects, and full template management over USB — no firmware required. Compatible with the CH340 adapter or any ESP32 running the `MCU_Adapter` sketch.
 
 <img src="extras/Images/Program%20screenshot.png" width="450" alt="HLK-ZW fingerprint sensor desktop tester GUI for Windows">
 

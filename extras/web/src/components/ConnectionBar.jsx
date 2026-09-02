@@ -2,6 +2,12 @@ import { useState } from 'react';
 import { Card, Pill } from './ui.jsx';
 import { BAUD_RATES } from '../protocol/constants.js';
 
+// Firefox 151+ implements Web Serial, but gates the first port request behind a
+// site-permission add-on install prompt that appears *before* the port picker.
+// Without a heads-up that reads as a failed connection, so the hint below
+// calls it out. UA sniffing is fine here: it only changes help text.
+const isFirefox = typeof navigator !== 'undefined' && /Firefox\//.test(navigator.userAgent);
+
 export default function ConnectionBar({
   connected, connecting, status, onConnect, onDisconnect,
   baudRate, setBaudRate, stopBits, setStopBits, password, setPassword,
@@ -78,6 +84,11 @@ export default function ConnectionBar({
         <p className="hint" style={{ marginTop: 10 }}>
           Click Connect and pick your USB-serial adapter (CH340, CP2102, FTDI) in
           the browser prompt. Default baud for HLK-ZW sensors is 57600.
+          {isFirefox && (
+            <> On Firefox the first connection asks you to install a small
+            site-permission add-on before the port picker opens — accept it, then
+            choose the port.</>
+          )}
         </p>
       )}
     </Card>

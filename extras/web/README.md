@@ -7,13 +7,41 @@ number reader, raw image capture — with nothing to install.
 
 ## Browser support
 
-Web Serial is **Chromium-only** — Chrome, Edge, Opera, Arc. Firefox and Safari
-do not implement it and show an explanatory notice instead. Those users should
-run [`../HLK_ZW_Tester_Program.py`](../HLK_ZW_Tester_Program.py), which has the
-same capabilities on Windows, macOS and Linux.
+| Browser | Web Serial | Notes |
+|---|---|---|
+| Chrome / Edge / Opera / Arc (desktop) | 89+ | Reference implementation |
+| Firefox (desktop) | 151+ | Extra add-on install step, see below |
+| Firefox for Android | ❌ | Not implemented |
+| Chrome for Android | 138+, partial | Bluetooth RFCOMM ports only — no USB |
+| Safari (macOS / iOS) | ❌ | No implementation, none announced |
+
+Where it is missing the tester shows an explanatory notice instead. Those users
+should run [`../HLK_ZW_Tester_Program.py`](../HLK_ZW_Tester_Program.py), which
+has the same capabilities on Windows, macOS and Linux.
 
 The page must be served over HTTPS or `localhost`; Web Serial is unavailable in
 insecure contexts.
+
+### Firefox notes
+
+Firefox 151 (19 May 2026) shipped Web Serial with the full API surface this
+tester uses — `requestPort`, `getPorts`, `open`/`close`, `readable`/`writable`,
+`getInfo`, `getSignals`/`setSignals`, `forget`, and the `connect`/`disconnect`
+events. No code changes were needed; the tester runs unmodified. Two behaviours
+differ from Chromium and are worth knowing before filing a bug:
+
+- **Add-on gating.** The first time a site calls `requestPort()`, Firefox asks
+  the user to install a site-permission add-on, *then* shows the port picker.
+  Cancelling the add-on step rejects the promise and looks like a plain
+  connection failure.
+- **Enterprise policy.** Under Firefox Enterprise Policies Web Serial is
+  disabled by default; an administrator has to allow it with
+  `DefaultSerialGuardSetting`.
+
+`dev/serial-probe.html` is a dependency-free page that prints exactly which
+parts of the API the current browser exposes, plus buttons that exercise
+`requestPort` / `getPorts` / open-write-read against real hardware. Open it
+directly over `localhost` (or any HTTPS host) when triaging a browser report.
 
 ## Local development
 
@@ -55,6 +83,8 @@ Everything the Python tester does:
   simple on/off, and it reports which path the module actually took
 - **Settings** — security level, baud rate, packet size, change password
 - **Log** — every frame in and out, with copy, download and problem reporting
+- **What's new** — release notes in the app, with the running version and
+  commit (see below)
 
 ### Capability probe
 
@@ -66,6 +96,38 @@ days of back-and-forth in issue #1.
 
 The probe sends each optional command and reports what came back, so an unusual
 module is a screenshot rather than a forensic exercise.
+
+## Versioning and release notes
+
+The header shows the running version (`v1.4.0`); hovering it gives the full
+build id, and clicking it opens the **What's new** tab. That tab also prints the
+commit and build date, and every problem report attaches all three
+(`app_version`, `build_sha`, `build_date`) — the commit is what actually
+identifies a build, since the tester redeploys on every push to `main` and a
+page is often several commits ahead of the last tag.
+
+| Where | Source |
+|---|---|
+| Version | `package.json`, injected as `__APP_VERSION__` |
+| Commit | `VERCEL_GIT_COMMIT_SHA` / `GITHUB_SHA` in CI, else `git rev-parse`, else `dev` |
+| Build date | Build time, UTC day |
+| Release notes | [`src/changelog.js`](src/changelog.js) |
+
+The version tracks the repository's release line — the same number as
+`library.properties` and the GitHub releases — so the app and the release notes
+on GitHub always mean the same thing. (It was pinned at `1.0.0` until v1.4.0,
+which made `app_version` useless in problem reports.)
+
+Release notes are hand-maintained data rather than a fetch of the GitHub
+releases API, so the tab works on a bench machine with no network. **When you
+bump `package.json`, add the matching entry to `src/changelog.js` in the same
+commit** — `test/changelog.test.mjs` fails the build otherwise, and it also
+checks ordering, dates and change kinds. Use `date: null` for a version that has
+not been tagged yet; the tab renders it as *unreleased*.
+
+A **What's new** dot appears on the tab when the running version differs from the
+one last read (`seenVersion` in `localStorage`). A first-time visitor is recorded
+silently, so the dot only ever means "new since your last visit".
 
 ## Protocol layer
 

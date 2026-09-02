@@ -7,11 +7,13 @@ import ConnectionBar from './components/ConnectionBar.jsx';
 import DeviceTab from './components/DeviceTab.jsx';
 import ManageTab from './components/ManageTab.jsx';
 import SettingsTab from './components/SettingsTab.jsx';
+import ChangelogTab from './components/ChangelogTab.jsx';
 import LogPanel from './components/LogPanel.jsx';
 import { ThemeToggle } from './components/ui.jsx';
 import RegistryLinks from './components/RegistryLinks.jsx';
 import ReportDialog from './components/ReportDialog.jsx';
 import { REPO_URL } from './lib/report.js';
+import { APP_VERSION, BUILD_ID } from './lib/build.js';
 
 const MAX_LOG_LINES = 4000;
 const supported = typeof navigator !== 'undefined' && 'serial' in navigator;
@@ -28,6 +30,10 @@ export default function App() {
   const [stopBits, setStopBits] = useState(1);
   const [password, setPassword] = useState('00000000');
   const [theme, setTheme] = useState(() => localStorage.getItem('theme') ?? 'system');
+  // Version the user has already read the notes for. A first-time visitor is
+  // recorded silently rather than nagged about changes to software they have
+  // never run, so the dot only ever means "new since your last visit".
+  const [seenVersion, setSeenVersion] = useState(() => localStorage.getItem('seenVersion'));
   // Resolved appearance — with theme 'system' this follows the OS, so the
   // toggle icon always shows what a click will actually change.
   const [isDark, setIsDark] = useState(false);
@@ -44,6 +50,8 @@ export default function App() {
   const [imgWidth, setImgWidth] = useState(firstPreset.width);
   const [imgHeight, setImgHeight] = useState(firstPreset.height);
   const [imgBpp, setImgBpp] = useState(firstPreset.bitsPerPixel);
+
+  const hasUnreadNotes = seenVersion !== null && seenVersion !== APP_VERSION;
 
   const cancelRef = useRef(false);
   const patch = useCallback((p) => setDevice((d) => ({ ...d, ...p })), []);
@@ -73,6 +81,14 @@ export default function App() {
     mq.addEventListener('change', apply);
     return () => mq.removeEventListener('change', apply);
   }, [theme]);
+
+  // Release notes: record the first visit, and clear the dot once they are read.
+  useEffect(() => {
+    if (seenVersion === null || tab === 'changelog') {
+      localStorage.setItem('seenVersion', APP_VERSION);
+      setSeenVersion(APP_VERSION);
+    }
+  }, [tab, seenVersion]);
 
   // Physical unplug
   useEffect(() => {
@@ -506,6 +522,13 @@ export default function App() {
         <img className="brand" src={`${import.meta.env.BASE_URL}favicon.ico`} alt="" width="26" height="26" />
         <h1>HLK-ZW Fingerprint Tester</h1>
         <span className="sub">Web Serial · no install required</span>
+        <button
+          className="version-chip"
+          title={BUILD_ID}
+          onClick={() => setTab('changelog')}
+        >
+          v{APP_VERSION}
+        </button>
         <span className="spacer" />
         <RegistryLinks compact />
         <ThemeToggle isDark={isDark} onToggle={() => setTheme(isDark ? 'light' : 'dark')} />
@@ -530,6 +553,7 @@ export default function App() {
           ['device', 'Device'],
           ['manage', 'Templates'],
           ['settings', 'Settings'],
+          ['changelog', "What's new"],
         ].map(([id, label]) => (
           <button
             key={id}
@@ -538,6 +562,9 @@ export default function App() {
             onClick={() => setTab(id)}
           >
             {label}
+            {id === 'changelog' && hasUnreadNotes && (
+              <i className="newdot" title="Updated since your last visit" />
+            )}
           </button>
         ))}
       </nav>
@@ -559,6 +586,7 @@ export default function App() {
           theme={theme} setTheme={setTheme}
         />
       )}
+      {tab === 'changelog' && <ChangelogTab />}
 
       <div style={{ marginTop: 14 }}>
         <LogPanel
@@ -593,14 +621,19 @@ function Unsupported() {
       <h1>Web Serial is not available in this browser</h1>
       <div className="card" style={{ marginTop: 20 }}>
         <p>
-          This tester talks to the sensor over the Web Serial API, which is
-          currently implemented only in Chromium-based browsers — Chrome, Edge,
-          Opera and Arc. Firefox and Safari do not support it.
+          This tester talks to the sensor over the Web Serial API. That needs a
+          desktop Chrome, Edge, Opera or Arc (89+), or Firefox 151+. Safari has
+          no implementation, and neither do the mobile browsers — Firefox for
+          Android included.
+        </p>
+        <p>
+          On a managed Firefox install Web Serial is off by default; an
+          administrator enables it with the <code>DefaultSerialGuardSetting</code>{' '}
+          enterprise policy.
         </p>
         <p style={{ marginBottom: 0 }}>
-          On Firefox or Safari, use the Python desktop tester in{' '}
-          <code>extras/</code> instead — it has the same feature set and runs on
-          Windows, macOS and Linux.{' '}
+          Anywhere else, use the Python desktop tester in <code>extras/</code>{' '}
+          instead — same feature set, runs on Windows, macOS and Linux.{' '}
           <a href={REPO_URL} target="_blank" rel="noreferrer">View on GitHub</a>
         </p>
       </div>
