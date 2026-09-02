@@ -12,7 +12,7 @@
 export const CHANGELOG = [
   {
     version: '1.4.0',
-    date: null,
+    date: '2026-09-02',
     title: 'Firefox support',
     changes: [
       ['added', 'Firefox 151+ works. Mozilla shipped the Web Serial API in May 2026, and the tester runs on it unmodified — same features as Chrome and Edge.'],
