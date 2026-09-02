@@ -593,14 +593,19 @@ function Unsupported() {
       <h1>Web Serial is not available in this browser</h1>
       <div className="card" style={{ marginTop: 20 }}>
         <p>
-          This tester talks to the sensor over the Web Serial API, which is
-          currently implemented only in Chromium-based browsers — Chrome, Edge,
-          Opera and Arc. Firefox and Safari do not support it.
+          This tester talks to the sensor over the Web Serial API. That needs a
+          desktop Chrome, Edge, Opera or Arc (89+), or Firefox 151+. Safari has
+          no implementation, and neither do the mobile browsers — Firefox for
+          Android included.
+        </p>
+        <p>
+          On a managed Firefox install Web Serial is off by default; an
+          administrator enables it with the <code>DefaultSerialGuardSetting</code>{' '}
+          enterprise policy.
         </p>
         <p style={{ marginBottom: 0 }}>
-          On Firefox or Safari, use the Python desktop tester in{' '}
-          <code>extras/</code> instead — it has the same feature set and runs on
-          Windows, macOS and Linux.{' '}
+          Anywhere else, use the Python desktop tester in <code>extras/</code>{' '}
+          instead — same feature set, runs on Windows, macOS and Linux.{' '}
           <a href={REPO_URL} target="_blank" rel="noreferrer">View on GitHub</a>
         </p>
       </div>

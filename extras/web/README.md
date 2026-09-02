@@ -7,13 +7,41 @@ number reader, raw image capture — with nothing to install.
 
 ## Browser support
 
-Web Serial is **Chromium-only** — Chrome, Edge, Opera, Arc. Firefox and Safari
-do not implement it and show an explanatory notice instead. Those users should
-run [`../HLK_ZW_Tester_Program.py`](../HLK_ZW_Tester_Program.py), which has the
-same capabilities on Windows, macOS and Linux.
+| Browser | Web Serial | Notes |
+|---|---|---|
+| Chrome / Edge / Opera / Arc (desktop) | 89+ | Reference implementation |
+| Firefox (desktop) | 151+ | Extra add-on install step, see below |
+| Firefox for Android | ❌ | Not implemented |
+| Chrome for Android | 138+, partial | Bluetooth RFCOMM ports only — no USB |
+| Safari (macOS / iOS) | ❌ | No implementation, none announced |
+
+Where it is missing the tester shows an explanatory notice instead. Those users
+should run [`../HLK_ZW_Tester_Program.py`](../HLK_ZW_Tester_Program.py), which
+has the same capabilities on Windows, macOS and Linux.
 
 The page must be served over HTTPS or `localhost`; Web Serial is unavailable in
 insecure contexts.
+
+### Firefox notes
+
+Firefox 151 (19 May 2026) shipped Web Serial with the full API surface this
+tester uses — `requestPort`, `getPorts`, `open`/`close`, `readable`/`writable`,
+`getInfo`, `getSignals`/`setSignals`, `forget`, and the `connect`/`disconnect`
+events. No code changes were needed; the tester runs unmodified. Two behaviours
+differ from Chromium and are worth knowing before filing a bug:
+
+- **Add-on gating.** The first time a site calls `requestPort()`, Firefox asks
+  the user to install a site-permission add-on, *then* shows the port picker.
+  Cancelling the add-on step rejects the promise and looks like a plain
+  connection failure.
+- **Enterprise policy.** Under Firefox Enterprise Policies Web Serial is
+  disabled by default; an administrator has to allow it with
+  `DefaultSerialGuardSetting`.
+
+`dev/serial-probe.html` is a dependency-free page that prints exactly which
+parts of the API the current browser exposes, plus buttons that exercise
+`requestPort` / `getPorts` / open-write-read against real hardware. Open it
+directly over `localhost` (or any HTTPS host) when triaging a browser report.
 
 ## Local development
 

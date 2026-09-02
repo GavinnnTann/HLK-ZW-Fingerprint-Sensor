@@ -1,0 +1,138 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Web Serial capability probe — HLK-ZW tester</title>
+<style>
+  :root { color-scheme: light dark; --ok:#15803d; --bad:#b91c1c; --warn:#b45309; }
+  body { font: 14px/1.5 system-ui, sans-serif; margin: 0; padding: 24px; max-width: 900px; }
+  h1 { font-size: 20px; margin: 0 0 4px; }
+  h2 { font-size: 15px; margin: 24px 0 8px; }
+  .sub { opacity: .7; margin: 0 0 16px; }
+  table { border-collapse: collapse; width: 100%; }
+  td, th { border-bottom: 1px solid rgba(128,128,128,.3); padding: 5px 8px; text-align: left; }
+  th { font-weight: 600; }
+  code { font-family: ui-monospace, monospace; }
+  .ok { color: var(--ok); font-weight: 600; }
+  .bad { color: var(--bad); font-weight: 600; }
+  .warn { color: var(--warn); font-weight: 600; }
+  #ua { word-break: break-all; opacity: .7; font-family: ui-monospace, monospace; font-size: 12px; }
+  button { font: inherit; padding: 6px 12px; margin-right: 8px; }
+  pre { background: rgba(128,128,128,.12); padding: 10px; overflow-x: auto; font-size: 12px; }
+</style>
+</head>
+<body>
+<h1>Web Serial capability probe</h1>
+<p class="sub">
+  Static page — no build step. Open it in any browser to see exactly which parts of the
+  Web Serial API that browser exposes. Firefox 151+ (desktop) is expected to pass the
+  static surface; everything under “Live checks” needs a real serial adapter plugged in.
+</p>
+
+<h2>Environment</h2>
+<table id="env"></table>
+
+<h2>Static API surface</h2>
+<table id="surface"></table>
+
+<h2>Live checks (require a user gesture + hardware)</h2>
+<p>
+  <button id="req">navigator.serial.requestPort()</button>
+  <button id="get">navigator.serial.getPorts()</button>
+  <button id="open">open @ 57600 8N1 + read 1 s</button>
+</p>
+<pre id="out">Ready.</pre>
+
+<script>
+(function () {
+  const rowsEnv = [
+    ['User agent', navigator.userAgent],
+    ['Secure context', window.isSecureContext],
+    ['Origin', location.origin],
+  ];
+  document.getElementById('env').innerHTML = rowsEnv
+    .map(([k, v]) => `<tr><th>${k}</th><td id="${k === 'User agent' ? 'ua' : ''}">${String(v)}</td></tr>`)
+    .join('');
+
+  const s = navigator.serial;
+  const SP = window.SerialPort && window.SerialPort.prototype;
+  const checks = [
+    ['navigator.serial', 'serial' in navigator],
+    ['Serial (interface)', typeof window.Serial === 'function'],
+    ['SerialPort (interface)', typeof window.SerialPort === 'function'],
+    ['serial.requestPort()', !!s && typeof s.requestPort === 'function'],
+    ['serial.getPorts()', !!s && typeof s.getPorts === 'function'],
+    ['serial onconnect/ondisconnect', !!s && 'onconnect' in s && 'ondisconnect' in s],
+    ['SerialPort.open()', !!SP && typeof SP.open === 'function'],
+    ['SerialPort.close()', !!SP && typeof SP.close === 'function'],
+    ['SerialPort.readable', !!SP && 'readable' in SP],
+    ['SerialPort.writable', !!SP && 'writable' in SP],
+    ['SerialPort.getInfo()', !!SP && typeof SP.getInfo === 'function'],
+    ['SerialPort.getSignals()', !!SP && typeof SP.getSignals === 'function'],
+    ['SerialPort.setSignals()', !!SP && typeof SP.setSignals === 'function'],
+    ['SerialPort.forget()', !!SP && typeof SP.forget === 'function'],
+    ['SerialPort.connected', !!SP && 'connected' in SP],
+    ['ReadableStream BYOB reader', typeof ReadableStreamBYOBReader === 'function'],
+  ];
+  document.getElementById('surface').innerHTML =
+    '<tr><th>Feature</th><th>Present</th></tr>' +
+    checks.map(([k, v]) =>
+      `<tr><td><code>${k}</code></td><td class="${v ? 'ok' : 'bad'}">${v ? 'yes' : 'NO'}</td></tr>`
+    ).join('');
+
+  const out = document.getElementById('out');
+  const log = (m) => { out.textContent += '\n' + m; };
+  let port = null;
+
+  document.getElementById('req').onclick = async () => {
+    try {
+      port = await navigator.serial.requestPort();
+      log('requestPort() -> ok; getInfo() = ' + JSON.stringify(port.getInfo()));
+    } catch (e) { log('requestPort() -> ' + e.name + ': ' + e.message); }
+  };
+
+  document.getElementById('get').onclick = async () => {
+    try {
+      const ports = await navigator.serial.getPorts();
+      log(`getPorts() -> ${ports.length} port(s): ` +
+        JSON.stringify(ports.map((p) => p.getInfo())));
+    } catch (e) { log('getPorts() -> ' + e.name + ': ' + e.message); }
+  };
+
+  document.getElementById('open').onclick = async () => {
+    try {
+      if (!port) port = await navigator.serial.requestPort();
+      await port.open({ baudRate: 57600, dataBits: 8, stopBits: 1, parity: 'none', flowControl: 'none' });
+      log('open() -> ok');
+      try { log('getSignals() = ' + JSON.stringify(await port.getSignals())); }
+      catch (e) { log('getSignals() -> ' + e.name + ': ' + e.message); }
+
+      // 0x01 0x00 0x03 0x01 0x00 0x05 = ReadSysPara with the default address.
+      const pkt = new Uint8Array([0xEF, 0x01, 0xFF, 0xFF, 0xFF, 0xFF, 0x01, 0x00, 0x03, 0x0F, 0x00, 0x13]);
+      const w = port.writable.getWriter();
+      await w.write(pkt);
+      w.releaseLock();
+      log('wrote ' + pkt.length + ' bytes (ReadSysPara)');
+
+      const r = port.readable.getReader();
+      const timer = setTimeout(() => r.cancel().catch(() => {}), 1000);
+      let got = 0;
+      for (;;) {
+        const { value, done } = await r.read();
+        if (done) break;
+        got += value.length;
+        log('read ' + value.length + ' bytes: ' +
+          [...value].map((b) => b.toString(16).padStart(2, '0')).join(' '));
+      }
+      clearTimeout(timer);
+      r.releaseLock();
+      log(got ? `total ${got} bytes read` : 'no bytes read within 1 s');
+      await port.close();
+      log('close() -> ok');
+    } catch (e) { log('open/read -> ' + e.name + ': ' + e.message); }
+  };
+})();
+</script>
+</body>
+</html>
